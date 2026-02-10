@@ -1,0 +1,31 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/Api/">
+    <Project Path="src/Api/BreakRetailManager.Api/BreakRetailManager.Api.csproj" />
+  </Folder>
+  <Folder Name="/src/BuildingBlocks/">
+    <Project Path="src/BuildingBlocks/BreakRetailManager.BuildingBlocks/BreakRetailManager.BuildingBlocks.csproj" />
+  </Folder>
+  <Folder Name="/src/Client/">
+    <Project Path="src/Client/BreakRetailManager.Client/BreakRetailManager.Client.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/" />
+  <Folder Name="/src/Modules/Sales/">
+    <Project Path="src/Modules/Sales/BreakRetailManager.Sales.Application/BreakRetailManager.Sales.Application.csproj" />
+    <Project Path="src/Modules/Sales/BreakRetailManager.Sales.Contracts/BreakRetailManager.Sales.Contracts.csproj" />
+    <Project Path="src/Modules/Sales/BreakRetailManager.Sales.Domain/BreakRetailManager.Sales.Domain.csproj" />
+    <Project Path="src/Modules/Sales/BreakRetailManager.Sales.Infrastructure/BreakRetailManager.Sales.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/UserManagement/">
+    <Project Path="src/Modules/UserManagement/BreakRetailManager.UserManagement.Application/BreakRetailManager.UserManagement.Application.csproj" />
+    <Project Path="src/Modules/UserManagement/BreakRetailManager.UserManagement.Contracts/BreakRetailManager.UserManagement.Contracts.csproj" />
+    <Project Path="src/Modules/UserManagement/BreakRetailManager.UserManagement.Domain/BreakRetailManager.UserManagement.Domain.csproj" />
+    <Project Path="src/Modules/UserManagement/BreakRetailManager.UserManagement.Infrastructure/BreakRetailManager.UserManagement.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Inventory/">
+    <Project Path="src/Modules/Inventory/BreakRetailManager.Inventory.Application/BreakRetailManager.Inventory.Application.csproj" />
+    <Project Path="src/Modules/Inventory/BreakRetailManager.Inventory.Contracts/BreakRetailManager.Inventory.Contracts.csproj" />
+    <Project Path="src/Modules/Inventory/BreakRetailManager.Inventory.Domain/BreakRetailManager.Inventory.Domain.csproj" />
+    <Project Path="src/Modules/Inventory/BreakRetailManager.Inventory.Infrastructure/BreakRetailManager.Inventory.Infrastructure.csproj" />
+  </Folder>
+</Solution>

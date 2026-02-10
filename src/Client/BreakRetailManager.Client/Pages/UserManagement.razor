@@ -1,0 +1,148 @@
+@page "/admin/users"
+@attribute [Authorize(Roles = "Admin")]
+@inject UserApiClient UserApi
+
+<PageTitle>User Management</PageTitle>
+
+<h1>User Management</h1>
+
+@if (!string.IsNullOrWhiteSpace(statusMessage))
+{
+    <div class="alert @statusCss alert-dismissible" role="alert">
+        @statusMessage
+        <button type="button" class="btn-close" @onclick="() => statusMessage = null"></button>
+    </div>
+}
+
+@if (isLoading)
+{
+    <p><em>Loading users...</em></p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Roles</th>
+                <th>Joined</th>
+                <th style="width: 320px;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var user in users)
+            {
+                <tr>
+                    <td>@user.DisplayName</td>
+                    <td>@user.Email</td>
+                    <td>
+                        @foreach (var role in user.Roles)
+                        {
+                            <span class="badge bg-primary me-1">@role</span>
+                        }
+                        @if (user.Roles.Count == 0)
+                        {
+                            <span class="text-muted">No roles</span>
+                        }
+                    </td>
+                    <td>@user.CreatedAt.LocalDateTime.ToString("d")</td>
+                    <td>
+                        <div class="d-flex gap-1 align-items-center">
+                            <select class="form-select form-select-sm" style="width: 140px;"
+                                    @bind="selectedRole">
+                                <option value="">Select role…</option>
+                                @foreach (var role in availableRoles)
+                                {
+                                    <option value="@role.Name">@role.Name</option>
+                                }
+                            </select>
+                            <button class="btn btn-sm btn-success"
+                                    disabled="@(string.IsNullOrEmpty(selectedRole))"
+                                    @onclick="() => AssignRoleAsync(user)">
+                                Assign
+                            </button>
+                            @if (user.Roles.Count > 0)
+                            {
+                                <select class="form-select form-select-sm" style="width: 140px;"
+                                        @bind="selectedRevokeRole">
+                                    <option value="">Revoke…</option>
+                                    @foreach (var role in user.Roles)
+                                    {
+                                        <option value="@role">@role</option>
+                                    }
+                                </select>
+                                <button class="btn btn-sm btn-danger"
+                                        disabled="@(string.IsNullOrEmpty(selectedRevokeRole))"
+                                        @onclick="() => RevokeRoleAsync(user)">
+                                    Revoke
+                                </button>
+                            }
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<UserDto> users = new();
+    private IReadOnlyList<RoleDto> availableRoles = [];
+    private bool isLoading = true;
+    private string? statusMessage;
+    private string statusCss = "alert-info";
+    private string selectedRole = string.Empty;
+    private string selectedRevokeRole = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        isLoading = true;
+        users = (await UserApi.GetAllUsersAsync()).ToList();
+        availableRoles = await UserApi.GetAllRolesAsync();
+        isLoading = false;
+    }
+
+    private async Task AssignRoleAsync(UserDto user)
+    {
+        if (string.IsNullOrEmpty(selectedRole)) return;
+
+        var result = await UserApi.AssignRoleAsync(user.Id, selectedRole);
+        if (result is not null)
+        {
+            statusMessage = $"Assigned '{selectedRole}' to {user.DisplayName}.";
+            statusCss = "alert-success";
+            selectedRole = string.Empty;
+            await LoadDataAsync();
+        }
+        else
+        {
+            statusMessage = $"Failed to assign role.";
+            statusCss = "alert-danger";
+        }
+    }
+
+    private async Task RevokeRoleAsync(UserDto user)
+    {
+        if (string.IsNullOrEmpty(selectedRevokeRole)) return;
+
+        var result = await UserApi.RevokeRoleAsync(user.Id, selectedRevokeRole);
+        if (result is not null)
+        {
+            statusMessage = $"Revoked '{selectedRevokeRole}' from {user.DisplayName}.";
+            statusCss = "alert-success";
+            selectedRevokeRole = string.Empty;
+            await LoadDataAsync();
+        }
+        else
+        {
+            statusMessage = $"Failed to revoke role.";
+            statusCss = "alert-danger";
+        }
+    }
+}

@@ -1,0 +1,52 @@
+# Build outputs
+bin/
+obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Rider
+.idea/
+*.sln.iml
+
+# VS Code
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# NuGet
+packages/
+*.nupkg
+
+# Logs
+*.log
+
+# Test results
+TestResults/
+
+# Publish output
+publish/
+
+# EF Core
+*.db
+*.db-shm
+*.db-wal
+
+# Coverage
+coverage/
+coverage.*
+
+# Local settings
+appsettings.Local.json
+
+# Copilot session state (local)
+.copilot/
+
+# Certificates / keys
+certs/

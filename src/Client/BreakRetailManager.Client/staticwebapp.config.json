@@ -1,0 +1,18 @@
+{
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": [
+      "/css/*",
+      "/js/*",
+      "/manifest.webmanifest",
+      "/service-worker.js",
+      "/service-worker.published.js",
+      "/_framework/*",
+      "/favicon.png",
+      "/icon-*.png"
+    ]
+  },
+  "globalHeaders": {
+    "X-Content-Type-Options": "nosniff"
+  }
+}

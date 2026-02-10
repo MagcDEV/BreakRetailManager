@@ -1,0 +1,449 @@
+@page "/sales"
+@using BreakRetailManager.Sales.Domain
+@using BreakRetailManager.Inventory.Contracts
+@attribute [Authorize]
+@inject SalesApiClient SalesApi
+@inject InventoryApiClient InventoryApi
+@inject ConnectivityService Connectivity
+@inject IndexedDbSalesStore Store
+
+<PageTitle>Point of Sale</PageTitle>
+
+<h1>Point of Sale</h1>
+
+@if (selectedLocationId == Guid.Empty)
+{
+    <div class="card mx-auto" style="max-width: 500px;">
+        <div class="card-header bg-primary text-white">
+            <strong>Select Location</strong>
+        </div>
+        <div class="card-body">
+            @if (locations.Count == 0)
+            {
+                <p class="text-muted">Loading locations...</p>
+            }
+            else
+            {
+                <p>Select your store location to begin:</p>
+                <div class="d-grid gap-2">
+                    @foreach (var loc in locations)
+                    {
+                        <button class="btn btn-outline-primary btn-lg" @onclick="() => SelectLocation(loc.Id)">
+                            📍 @loc.Name
+                            @if (!string.IsNullOrWhiteSpace(loc.Address))
+                            {
+                                <br /><small class="text-muted">@loc.Address</small>
+                            }
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+    return;
+}
+
+@if (!string.IsNullOrWhiteSpace(statusMessage))
+{
+    <div class="alert @statusCss alert-dismissible" role="alert">
+        @statusMessage
+        <button type="button" class="btn-close" @onclick="() => statusMessage = null"></button>
+    </div>
+}
+
+<ul class="nav nav-tabs mb-4">
+    <li class="nav-item">
+        <button class="nav-link @(activeTab == PosTab.NewSale ? "active" : "")" @onclick="() => activeTab = PosTab.NewSale">New Sale</button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link @(activeTab == PosTab.History ? "active" : "")" @onclick="ShowHistory">Order History</button>
+    </li>
+</ul>
+
+@if (activeTab == PosTab.NewSale)
+{
+    <div class="row">
+        <!-- Barcode scanner input -->
+        <div class="col-md-8">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="row g-3 align-items-end">
+                        <div class="col">
+                            <label class="form-label fw-bold">Scan Barcode</label>
+                            <input type="text" class="form-control form-control-lg" placeholder="Scan or type barcode..."
+                                   @bind="barcodeInput" @bind:event="oninput"
+                                   @onkeydown="OnBarcodeKeyDown" @ref="barcodeField" autofocus />
+                        </div>
+                        <div class="col-auto">
+                            <button class="btn btn-primary btn-lg" @onclick="LookupBarcodeAsync" disabled="@isSearching">
+                                @(isSearching ? "Searching..." : "Add")
+                            </button>
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(scanError))
+                    {
+                        <div class="text-danger mt-2">@scanError</div>
+                    }
+                </div>
+            </div>
+
+            <!-- Current order lines -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>Current Order</strong>
+                    <span class="badge bg-secondary">@currentOrderLines.Count item(s)</span>
+                </div>
+                <div class="card-body p-0">
+                    @if (currentOrderLines.Count == 0)
+                    {
+                        <div class="p-4 text-center text-muted">
+                            <em>Scan a product barcode to start a sale.</em>
+                        </div>
+                    }
+                    else
+                    {
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th class="text-center">Qty</th>
+                                    <th class="text-end">Unit Price</th>
+                                    <th class="text-end">Subtotal</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var line in currentOrderLines)
+                                {
+                                    <tr>
+                                        <td>
+                                            @line.ProductName
+                                            <br /><small class="text-muted">@line.Barcode</small>
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="btn-group btn-group-sm">
+                                                <button class="btn btn-outline-secondary" @onclick="() => ChangeQuantity(line, -1)">−</button>
+                                                <span class="btn btn-outline-secondary disabled">@line.Quantity</span>
+                                                <button class="btn btn-outline-secondary" @onclick="() => ChangeQuantity(line, 1)">+</button>
+                                            </div>
+                                        </td>
+                                        <td class="text-end">@line.UnitPrice.ToString("C", arsCulture)</td>
+                                        <td class="text-end fw-bold">@((line.Quantity * line.UnitPrice).ToString("C", arsCulture))</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveLine(line)">✕</button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Order summary panel -->
+        <div class="col-md-4">
+            <div class="card border-primary">
+                <div class="card-header bg-primary text-white">
+                    <strong>Order Summary</strong>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Items:</span>
+                        <span>@currentOrderLines.Sum(l => l.Quantity)</span>
+                    </div>
+                    <hr />
+                    <div class="d-flex justify-content-between mb-3">
+                        <span class="fs-4 fw-bold">Total:</span>
+                        <span class="fs-4 fw-bold">@OrderTotal.ToString("C", arsCulture)</span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Payment Method</label>
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="payment" id="payCash"
+                                   checked="@(selectedPayment == PaymentMethod.Cash)"
+                                   @onchange="() => selectedPayment = PaymentMethod.Cash" />
+                            <label class="btn btn-outline-success" for="payCash">💵 Cash</label>
+
+                            <input type="radio" class="btn-check" name="payment" id="payCard"
+                                   checked="@(selectedPayment == PaymentMethod.Card)"
+                                   @onchange="() => selectedPayment = PaymentMethod.Card" />
+                            <label class="btn btn-outline-primary" for="payCard">💳 Card</label>
+
+                            <input type="radio" class="btn-check" name="payment" id="payTransfer"
+                                   checked="@(selectedPayment == PaymentMethod.Transfer)"
+                                   @onchange="() => selectedPayment = PaymentMethod.Transfer" />
+                            <label class="btn btn-outline-info" for="payTransfer">🏦 Transfer</label>
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-success btn-lg" @onclick="ConfirmSaleAsync"
+                                disabled="@(currentOrderLines.Count == 0 || isSubmitting)">
+                            ✓ Confirm Sale
+                        </button>
+                        <button class="btn btn-outline-danger" @onclick="CancelOrder"
+                                disabled="@(currentOrderLines.Count == 0)">
+                            ✕ Cancel Order
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mt-3">
+                <div class="card-body text-center">
+                    <small class="text-muted">
+                        📍 <strong>@selectedLocationName</strong>
+                    </small>
+                    <br />
+                    <small class="text-muted">
+                        Status: <span class="badge @(IsOnline ? "bg-success" : "bg-warning text-dark")">@(IsOnline ? "Online" : "Offline")</span>
+                    </small>
+                    @if (outboxCount > 0)
+                    {
+                        <div class="mt-2">
+                            <button class="btn btn-sm btn-outline-primary" @onclick="SyncAsync" disabled="@(!IsOnline)">
+                                Sync (@outboxCount pending)
+                            </button>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (activeTab == PosTab.History)
+{
+    @if (orders.Count == 0)
+    {
+        <p><em>No orders yet.</em></p>
+    }
+    else
+    {
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Number</th>
+                    <th>Created</th>
+                    <th>Total</th>
+                    <th>Lines</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var order in orders)
+                {
+                    <tr>
+                        <td>@order.Number</td>
+                        <td>@order.CreatedAt.LocalDateTime.ToString("g")</td>
+                        <td>@order.Total.ToString("C", arsCulture)</td>
+                        <td>
+                            <ul class="mb-0">
+                                @foreach (var line in order.Lines)
+                                {
+                                    <li>@line.ProductName (@line.Quantity x @line.UnitPrice.ToString("C", arsCulture))</li>
+                                }
+                            </ul>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    private static readonly System.Globalization.CultureInfo arsCulture = new("es-AR");
+
+    private readonly List<OrderLineModel> currentOrderLines = new();
+    private readonly List<SalesOrderDto> orders = new();
+    private readonly List<LocationDto> locations = new();
+
+    private PosTab activeTab = PosTab.NewSale;
+    private string barcodeInput = string.Empty;
+    private string? scanError;
+    private string? statusMessage;
+    private string statusCss = "alert-info";
+    private bool isSearching;
+    private bool isSubmitting;
+    private int outboxCount;
+    private bool IsOnline;
+    private PaymentMethod selectedPayment = PaymentMethod.Cash;
+    private Guid selectedLocationId;
+    private string selectedLocationName = string.Empty;
+
+    private ElementReference barcodeField;
+
+    private decimal OrderTotal => currentOrderLines.Sum(l => l.Quantity * l.UnitPrice);
+
+    protected override async Task OnInitializedAsync()
+    {
+        IsOnline = await Connectivity.IsOnlineAsync();
+        if (IsOnline)
+        {
+            await SalesApi.SyncOutboxAsync();
+            locations.AddRange(await InventoryApi.GetLocationsAsync());
+        }
+        outboxCount = (await Store.GetOutboxAsync()).Count;
+    }
+
+    private void SelectLocation(Guid locationId)
+    {
+        selectedLocationId = locationId;
+        selectedLocationName = locations.FirstOrDefault(l => l.Id == locationId)?.Name ?? "Unknown";
+    }
+
+    private async Task OnBarcodeKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await LookupBarcodeAsync();
+        }
+    }
+
+    private async Task LookupBarcodeAsync()
+    {
+        scanError = null;
+        var barcode = barcodeInput.Trim();
+        if (string.IsNullOrWhiteSpace(barcode))
+        {
+            return;
+        }
+
+        // If product already in order, just increment quantity
+        var existing = currentOrderLines.FirstOrDefault(l => l.Barcode.Equals(barcode, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+        {
+            existing.Quantity++;
+            barcodeInput = string.Empty;
+            return;
+        }
+
+        isSearching = true;
+        var product = await InventoryApi.GetProductByBarcodeAsync(barcode);
+
+        if (product is null)
+        {
+            scanError = $"Product with barcode \"{barcode}\" not found.";
+            isSearching = false;
+            return;
+        }
+
+        if (product.StockQuantity <= 0)
+        {
+            scanError = $"\"{product.Name}\" is out of stock.";
+            isSearching = false;
+            return;
+        }
+
+        currentOrderLines.Add(new OrderLineModel
+        {
+            ProductId = product.Id,
+            Barcode = product.Barcode,
+            ProductName = product.Name,
+            UnitPrice = product.SalePrice,
+            Quantity = 1,
+            AvailableStock = product.StockQuantity
+        });
+
+        barcodeInput = string.Empty;
+        isSearching = false;
+    }
+
+    private void ChangeQuantity(OrderLineModel line, int delta)
+    {
+        var newQty = line.Quantity + delta;
+        if (newQty < 1)
+        {
+            RemoveLine(line);
+            return;
+        }
+
+        if (newQty > line.AvailableStock)
+        {
+            scanError = $"Only {line.AvailableStock} units of \"{line.ProductName}\" available.";
+            return;
+        }
+
+        scanError = null;
+        line.Quantity = newQty;
+    }
+
+    private void RemoveLine(OrderLineModel line)
+    {
+        currentOrderLines.Remove(line);
+        scanError = null;
+    }
+
+    private void CancelOrder()
+    {
+        currentOrderLines.Clear();
+        selectedPayment = PaymentMethod.Cash;
+        statusMessage = "Order cancelled.";
+        statusCss = "alert-warning";
+        scanError = null;
+    }
+
+    private async Task ConfirmSaleAsync()
+    {
+        if (currentOrderLines.Count == 0) return;
+
+        isSubmitting = true;
+        statusMessage = null;
+        scanError = null;
+
+        var lineRequests = currentOrderLines
+            .Select(l => new CreateSalesOrderLineRequest(l.ProductId, l.ProductName, l.Quantity, l.UnitPrice))
+            .ToArray();
+
+        var request = new CreateSalesOrderRequest(lineRequests, selectedLocationId, selectedPayment);
+        var created = await SalesApi.CreateOrderAsync(request);
+
+        // Decrement stock at the sale location for each sold product
+        foreach (var line in currentOrderLines)
+        {
+            await InventoryApi.UpdateLocationStockAsync(selectedLocationId, line.ProductId, -line.Quantity);
+        }
+
+        var isOffline = created.Number.StartsWith("OFFLINE-", StringComparison.OrdinalIgnoreCase);
+        statusMessage = isOffline
+            ? $"Sale saved offline (queued for sync). Total: {OrderTotal.ToString("C", arsCulture)}"
+            : $"Sale confirmed! Order #{created.Number}. Total: {OrderTotal.ToString("C", arsCulture)}";
+        statusCss = isOffline ? "alert-warning" : "alert-success";
+
+        currentOrderLines.Clear();
+        selectedPayment = PaymentMethod.Cash;
+        outboxCount = (await Store.GetOutboxAsync()).Count;
+        isSubmitting = false;
+    }
+
+    private async Task ShowHistory()
+    {
+        activeTab = PosTab.History;
+        orders.Clear();
+        orders.AddRange(await SalesApi.GetOrdersAsync());
+    }
+
+    private async Task SyncAsync()
+    {
+        statusMessage = null;
+        await SalesApi.SyncOutboxAsync();
+        IsOnline = await Connectivity.IsOnlineAsync();
+        outboxCount = (await Store.GetOutboxAsync()).Count;
+        statusMessage = "Sync complete.";
+        statusCss = "alert-success";
+    }
+
+    private enum PosTab { NewSale, History }
+
+    private sealed class OrderLineModel
+    {
+        public Guid ProductId { get; set; }
+        public string Barcode { get; set; } = string.Empty;
+        public string ProductName { get; set; } = string.Empty;
+        public decimal UnitPrice { get; set; }
+        public int Quantity { get; set; }
+        public int AvailableStock { get; set; }
+    }
+}
