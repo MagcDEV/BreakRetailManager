@@ -1,5 +1,7 @@
 using BreakRetailManager.Sales.Contracts;
 using BreakRetailManager.Sales.Domain.Entities;
+using ContractPaymentMethod = BreakRetailManager.Sales.Contracts.PaymentMethod;
+using DomainPaymentMethod = BreakRetailManager.Sales.Domain.PaymentMethod;
 
 namespace BreakRetailManager.Sales.Application;
 
@@ -13,14 +15,16 @@ public static class SalesMappings
             order.CreatedAt,
             order.Total,
             order.Lines
-                .Select(line => new SalesOrderLineDto(line.Id, line.ProductName, line.Quantity, line.UnitPrice))
+                .Select(line => new SalesOrderLineDto(line.Id, line.ProductId, line.ProductName, line.Quantity, line.UnitPrice))
                 .ToList(),
-            order.PaymentMethod,
+            ToContractPaymentMethod(order.PaymentMethod),
             order.LocationId,
             order.Cae,
             order.CaeExpirationDate,
             order.InvoiceNumber,
-            order.PointOfSale);
+            order.PointOfSale,
+            order.Subtotal,
+            order.DiscountTotal);
     }
 
     public static SalesOrder FromRequest(CreateSalesOrderRequest request)
@@ -31,17 +35,39 @@ public static class SalesMappings
         }
 
         var order = new SalesOrder(
-            $"SO-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}",
+            $"SO-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmssfff}-{Random.Shared.Next(1000, 9999)}",
             DateTimeOffset.UtcNow);
 
-        order.SetPaymentMethod(request.PaymentMethod);
+        order.SetPaymentMethod(ToDomainPaymentMethod(request.PaymentMethod));
         order.SetLocation(request.LocationId);
 
         foreach (var line in request.Lines)
         {
-            order.AddLine(line.ProductName, line.Quantity, line.UnitPrice);
+            order.AddLine(line.ProductId, line.ProductName, line.Quantity, line.UnitPrice);
         }
 
         return order;
+    }
+
+    private static ContractPaymentMethod ToContractPaymentMethod(DomainPaymentMethod paymentMethod)
+    {
+        return paymentMethod switch
+        {
+            DomainPaymentMethod.Cash => ContractPaymentMethod.Cash,
+            DomainPaymentMethod.Card => ContractPaymentMethod.Card,
+            DomainPaymentMethod.Transfer => ContractPaymentMethod.Transfer,
+            _ => throw new ArgumentOutOfRangeException(nameof(paymentMethod), paymentMethod, "Unsupported payment method.")
+        };
+    }
+
+    private static DomainPaymentMethod ToDomainPaymentMethod(ContractPaymentMethod paymentMethod)
+    {
+        return paymentMethod switch
+        {
+            ContractPaymentMethod.Cash => DomainPaymentMethod.Cash,
+            ContractPaymentMethod.Card => DomainPaymentMethod.Card,
+            ContractPaymentMethod.Transfer => DomainPaymentMethod.Transfer,
+            _ => throw new ArgumentOutOfRangeException(nameof(paymentMethod), paymentMethod, "Unsupported payment method.")
+        };
     }
 }

@@ -1,7 +1,9 @@
 @page "/inventory"
 @using BreakRetailManager.Inventory.Contracts
+@implements IAsyncDisposable
 @attribute [Authorize(Roles = "Admin,Manager")]
 @inject InventoryApiClient InventoryApi
+@inject InventoryRealtimeClient Realtime
 
 <PageTitle>Inventory</PageTitle>
 
@@ -282,57 +284,123 @@
 @if (activeTab == Tab.AdjustStock)
 {
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="mb-0">Adjust Stock: @stockProductName</h5>
-        <button class="btn btn-sm btn-outline-secondary" @onclick="() => activeTab = Tab.Products">Cancel</button>
+        <h5 class="mb-0">📦 Stock: @stockProductName</h5>
+        <button class="btn btn-sm btn-outline-secondary" @onclick="() => activeTab = Tab.Products">← Back</button>
     </div>
 
-    <div class="card" style="max-width: 600px;">
-        <div class="card-body">
-            <div class="mb-3">
-                <label class="form-label fw-bold">Location</label>
-                <select class="form-select" value="@stockLocationId" @onchange="OnStockLocationChanged">
-                    <option value="">-- Select location --</option>
-                    @foreach (var loc in locations)
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-header bg-light">
+                    <strong>Stock by Location</strong>
+                    <span class="badge bg-primary float-end">Total: @locationStocks.Sum(s => s.Quantity)</span>
+                </div>
+                <div class="card-body p-0">
+                    @if (isLoadingStock)
                     {
-                        <option value="@loc.Id">📍 @loc.Name</option>
+                        <div class="p-3 text-muted">Loading...</div>
                     }
-                </select>
+                    else if (locationStocks.Count == 0)
+                    {
+                        <div class="p-3 text-muted">No stock assigned to any location yet.</div>
+                    }
+                    else
+                    {
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Location</th>
+                                    <th class="text-end">Qty</th>
+                                    <th class="text-center">Status</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var stock in locationStocks)
+                                {
+                                    <tr class="@(stock.IsLowStock ? "table-warning" : "")">
+                                        <td>📍 @stock.LocationName</td>
+                                        <td class="text-end fw-bold">@stock.Quantity</td>
+                                        <td class="text-center">
+                                            @if (stock.IsLowStock)
+                                            {
+                                                <span class="badge bg-warning text-dark">Low</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-success">OK</span>
+                                            }
+                                        </td>
+                                        <td class="text-end">
+                                            <button class="btn btn-sm btn-outline-primary py-0"
+                                                    @onclick="() => SelectStockLocation(stock.LocationId, stock.LocationName, stock.Quantity)">
+                                                Adjust
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                                @foreach (var loc in locations.Where(l => !locationStocks.Any(s => s.LocationId == l.Id)))
+                                {
+                                    <tr class="text-muted">
+                                        <td>📍 @loc.Name</td>
+                                        <td class="text-end">0</td>
+                                        <td class="text-center"><span class="badge bg-secondary">None</span></td>
+                                        <td class="text-end">
+                                            <button class="btn btn-sm btn-outline-primary py-0"
+                                                    @onclick="() => SelectStockLocation(loc.Id, loc.Name, 0)">
+                                                Adjust
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
             </div>
+        </div>
 
-            @if (stockLocationId == Guid.Empty)
-            {
-                <div class="alert alert-info">Select a location to adjust stock.</div>
-            }
-            else
-            {
-                <p class="mb-2">Current stock at location: <strong>@stockCurrentQuantity</strong></p>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <strong>Adjust Stock</strong>
+                </div>
+                <div class="card-body">
+                    @if (stockLocationId == Guid.Empty)
+                    {
+                        <div class="text-muted text-center py-3">
+                            ← Select a location to adjust
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-light border mb-3 py-2">
+                            📍 <strong>@stockLocationName</strong> — Current: <strong>@stockCurrentQuantity</strong> units
+                        </div>
 
-                <div class="row g-3 align-items-end">
-                    <div class="col">
-                        <label class="form-label">Quantity to add/remove</label>
-                        <input type="number" class="form-control" @bind="stockAdjustQuantity" />
-                        <small class="text-muted">Use positive to add, negative to remove.</small>
-                    </div>
-                    <div class="col-auto">
-                        <button class="btn btn-success me-1" disabled="@isSubmitting" @onclick="() => ApplyStockAdjustAsync(stockAdjustQuantity)">Apply</button>
-                    </div>
-                </div>
+                        <div class="row g-3 align-items-end mb-3">
+                            <div class="col">
+                                <label class="form-label">Quantity to add/remove</label>
+                                <input type="number" class="form-control" @bind="stockAdjustQuantity" />
+                            </div>
+                            <div class="col-auto">
+                                <button class="btn btn-success" disabled="@isSubmitting" @onclick="() => ApplyStockAdjustAsync(stockAdjustQuantity)">Apply</button>
+                            </div>
+                        </div>
 
-                <hr />
-                <p class="mb-2"><strong>Quick adjust:</strong></p>
-                <div class="btn-group me-2">
-                    <button class="btn btn-outline-success btn-sm" disabled="@isSubmitting" @onclick="() => QuickAdjustAsync(1)">+1</button>
-                    <button class="btn btn-outline-success btn-sm" disabled="@isSubmitting" @onclick="() => QuickAdjustAsync(5)">+5</button>
-                    <button class="btn btn-outline-success btn-sm" disabled="@isSubmitting" @onclick="() => QuickAdjustAsync(10)">+10</button>
-                    <button class="btn btn-outline-success btn-sm" disabled="@isSubmitting" @onclick="() => QuickAdjustAsync(50)">+50</button>
+                        <div class="d-flex gap-1 flex-wrap">
+                            <button class="btn btn-outline-success btn-sm" disabled="@isSubmitting" @onclick="() => QuickAdjustAsync(1)">+1</button>
+                            <button class="btn btn-outline-success btn-sm" disabled="@isSubmitting" @onclick="() => QuickAdjustAsync(5)">+5</button>
+                            <button class="btn btn-outline-success btn-sm" disabled="@isSubmitting" @onclick="() => QuickAdjustAsync(10)">+10</button>
+                            <button class="btn btn-outline-success btn-sm" disabled="@isSubmitting" @onclick="() => QuickAdjustAsync(50)">+50</button>
+                            <button class="btn btn-outline-danger btn-sm" disabled="@isSubmitting" @onclick="() => QuickAdjustAsync(-1)">-1</button>
+                            <button class="btn btn-outline-danger btn-sm" disabled="@isSubmitting" @onclick="() => QuickAdjustAsync(-5)">-5</button>
+                            <button class="btn btn-outline-danger btn-sm" disabled="@isSubmitting" @onclick="() => QuickAdjustAsync(-10)">-10</button>
+                            <button class="btn btn-outline-danger btn-sm" disabled="@isSubmitting" @onclick="() => QuickAdjustAsync(-50)">-50</button>
+                        </div>
+                    }
                 </div>
-                <div class="btn-group">
-                    <button class="btn btn-outline-danger btn-sm" disabled="@isSubmitting" @onclick="() => QuickAdjustAsync(-1)">-1</button>
-                    <button class="btn btn-outline-danger btn-sm" disabled="@isSubmitting" @onclick="() => QuickAdjustAsync(-5)">-5</button>
-                    <button class="btn btn-outline-danger btn-sm" disabled="@isSubmitting" @onclick="() => QuickAdjustAsync(-10)">-10</button>
-                    <button class="btn btn-outline-danger btn-sm" disabled="@isSubmitting" @onclick="() => QuickAdjustAsync(-50)">-50</button>
-                </div>
-            }
+            </div>
         </div>
     </div>
 }
@@ -393,10 +461,17 @@
     private int stockCurrentQuantity;
     private int stockAdjustQuantity;
     private Guid stockLocationId;
+    private string stockLocationName = string.Empty;
+    private readonly List<LocationStockDto> locationStocks = new();
+    private bool isLoadingStock;
+    private CancellationTokenSource? realtimeRefreshDebounceCts;
+    private readonly TimeSpan realtimeRefreshDebounceDelay = TimeSpan.FromMilliseconds(300);
 
     protected override async Task OnInitializedAsync()
     {
         await LoadDataAsync();
+        Realtime.StockChanged += HandleRealtimeStockChangedAsync;
+        await Realtime.StartAsync();
     }
 
     private async Task LoadDataAsync()
@@ -432,30 +507,43 @@
         activeTab = Tab.EditProduct;
     }
 
-    private void BeginStockAdjust(ProductDto product)
+    private async Task BeginStockAdjust(ProductDto product)
     {
         stockProductId = product.Id;
         stockProductName = product.Name;
-        stockCurrentQuantity = product.StockQuantity;
+        stockCurrentQuantity = 0;
         stockAdjustQuantity = 0;
         stockLocationId = Guid.Empty;
+        stockLocationName = string.Empty;
         activeTab = Tab.AdjustStock;
+
+        await LoadLocationStocksAsync();
     }
 
-    private async Task OnStockLocationChanged(ChangeEventArgs e)
+    private async Task LoadLocationStocksAsync()
     {
-        stockLocationId = Guid.TryParse(e.Value?.ToString(), out var id) ? id : Guid.Empty;
+        isLoadingStock = true;
+        locationStocks.Clear();
 
-        if (stockLocationId != Guid.Empty)
+        foreach (var loc in locations)
         {
-            var locationStock = await InventoryApi.GetLocationStockAsync(stockLocationId);
-            var match = locationStock.FirstOrDefault(s => s.ProductId == stockProductId);
-            stockCurrentQuantity = match?.Quantity ?? 0;
+            var stocks = await InventoryApi.GetLocationStockAsync(loc.Id);
+            var match = stocks.FirstOrDefault(s => s.ProductId == stockProductId);
+            if (match is not null)
+            {
+                locationStocks.Add(match);
+            }
         }
-        else
-        {
-            stockCurrentQuantity = 0;
-        }
+
+        isLoadingStock = false;
+    }
+
+    private void SelectStockLocation(Guid locationId, string locationName, int currentQty)
+    {
+        stockLocationId = locationId;
+        stockLocationName = locationName;
+        stockCurrentQuantity = currentQty;
+        stockAdjustQuantity = 0;
     }
 
     private async Task UpdateProductAsync()
@@ -502,10 +590,10 @@
         {
             stockCurrentQuantity = result.Quantity;
             stockAdjustQuantity = 0;
-            var locName = locations.FirstOrDefault(l => l.Id == stockLocationId)?.Name ?? "location";
-            statusMessage = $"Stock for '{stockProductName}' at {locName} adjusted by {(quantity >= 0 ? "+" : "")}{quantity}. New stock: {result.Quantity}.";
+            statusMessage = $"Stock for '{stockProductName}' at {stockLocationName} adjusted by {(quantity >= 0 ? "+" : "")}{quantity}. New stock: {result.Quantity}.";
             statusCss = "alert-success";
             await LoadDataAsync();
+            await LoadLocationStocksAsync();
         }
         else
         {
@@ -583,6 +671,66 @@
         }
 
         isSubmitting = false;
+    }
+
+    private Task HandleRealtimeStockChangedAsync(InventoryStockChangedEvent _)
+    {
+        ScheduleDebouncedRealtimeRefresh();
+        return Task.CompletedTask;
+    }
+
+    private void ScheduleDebouncedRealtimeRefresh()
+    {
+        realtimeRefreshDebounceCts?.Cancel();
+        realtimeRefreshDebounceCts?.Dispose();
+
+        var cts = new CancellationTokenSource();
+        realtimeRefreshDebounceCts = cts;
+
+        _ = RunDebouncedRealtimeRefreshAsync(cts.Token);
+    }
+
+    private async Task RunDebouncedRealtimeRefreshAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(realtimeRefreshDebounceDelay, cancellationToken);
+
+            await InvokeAsync(async () =>
+            {
+                await LoadDataAsync();
+
+                if (activeTab == Tab.LowStock)
+                {
+                    lowStockProducts.Clear();
+                    lowStockProducts.AddRange(await InventoryApi.GetLowStockProductsAsync(cancellationToken));
+                }
+
+                if (activeTab == Tab.AdjustStock && stockProductId != Guid.Empty)
+                {
+                    await LoadLocationStocksAsync();
+                    var selectedStock = locationStocks.FirstOrDefault(stock => stock.LocationId == stockLocationId);
+                    if (selectedStock is not null)
+                    {
+                        stockCurrentQuantity = selectedStock.Quantity;
+                    }
+                }
+
+                StateHasChanged();
+            });
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        realtimeRefreshDebounceCts?.Cancel();
+        realtimeRefreshDebounceCts?.Dispose();
+
+        Realtime.StockChanged -= HandleRealtimeStockChangedAsync;
+        await Realtime.DisposeAsync();
     }
 
     private enum Tab { Products, LowStock, Providers, AddProduct, AddProvider, EditProduct, AdjustStock }

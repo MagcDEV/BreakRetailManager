@@ -4,6 +4,7 @@ using BreakRetailManager.Sales.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BreakRetailManager.Sales.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(SalesDbContext))]
-    partial class SalesDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260215153305_AddProductIdToSalesOrderLine")]
+    partial class AddProductIdToSalesOrderLine
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,42 +24,6 @@ namespace BreakRetailManager.Sales.Infrastructure.Data.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
-
-            modelBuilder.Entity("BreakRetailManager.Sales.Domain.Entities.Offer", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<int>("DiscountType")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("DiscountValue")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Offers", "sales");
-                });
 
             modelBuilder.Entity("BreakRetailManager.Sales.Domain.Entities.SalesOrder", b =>
                 {
@@ -73,9 +40,6 @@ namespace BreakRetailManager.Sales.Infrastructure.Data.Migrations
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
-
-                    b.Property<decimal>("DiscountTotal")
-                        .HasColumnType("decimal(18,2)");
 
                     b.Property<long>("InvoiceNumber")
                         .HasColumnType("bigint");
@@ -100,30 +64,6 @@ namespace BreakRetailManager.Sales.Infrastructure.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("SalesOrders", "sales");
-                });
-
-            modelBuilder.Entity("BreakRetailManager.Sales.Domain.Entities.Offer", b =>
-                {
-                    b.OwnsMany("BreakRetailManager.Sales.Domain.Entities.OfferRequirement", "Requirements", b1 =>
-                        {
-                            b1.Property<Guid>("OfferId")
-                                .HasColumnType("uniqueidentifier");
-
-                            b1.Property<Guid>("ProductId")
-                                .HasColumnType("uniqueidentifier");
-
-                            b1.Property<int>("Quantity")
-                                .HasColumnType("int");
-
-                            b1.HasKey("OfferId", "ProductId");
-
-                            b1.ToTable("OfferRequirements", "sales");
-
-                            b1.WithOwner()
-                                .HasForeignKey("OfferId");
-                        });
-
-                    b.Navigation("Requirements");
                 });
 
             modelBuilder.Entity("BreakRetailManager.Sales.Domain.Entities.SalesOrder", b =>

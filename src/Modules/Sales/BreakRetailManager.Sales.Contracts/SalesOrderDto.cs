@@ -1,5 +1,3 @@
-using BreakRetailManager.Sales.Domain;
-
 namespace BreakRetailManager.Sales.Contracts;
 
 public sealed record SalesOrderDto(
@@ -13,4 +11,6 @@ public sealed record SalesOrderDto(
     string? Cae,
     DateOnly? CaeExpirationDate,
     long InvoiceNumber,
-    int PointOfSale);
+    int PointOfSale,
+    decimal Subtotal = 0,
+    decimal DiscountTotal = 0);

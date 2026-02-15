@@ -12,6 +12,8 @@ public sealed class SalesDbContext : DbContext
 
     public DbSet<SalesOrder> SalesOrders => Set<SalesOrder>();
 
+    public DbSet<Offer> Offers => Set<Offer>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<SalesOrder>(order =>
@@ -22,6 +24,7 @@ public sealed class SalesDbContext : DbContext
             order.Property(entity => entity.CreatedAt).IsRequired();
             order.Property(entity => entity.PaymentMethod).IsRequired();
             order.Property(entity => entity.LocationId).IsRequired();
+            order.Property(entity => entity.DiscountTotal).HasColumnType("decimal(18,2)").IsRequired();
             order.Property(entity => entity.Cae).HasMaxLength(20);
             order.Property(entity => entity.CaeExpirationDate);
             order.Property(entity => entity.InvoiceNumber);
@@ -32,6 +35,7 @@ public sealed class SalesDbContext : DbContext
             {
                 line.ToTable("SalesOrderLines", "sales");
                 line.HasKey(entity => entity.Id);
+                line.Property(entity => entity.ProductId).IsRequired();
                 line.Property(entity => entity.ProductName).HasMaxLength(200).IsRequired();
                 line.Property(entity => entity.Quantity).IsRequired();
                 line.Property(entity => entity.UnitPrice).HasColumnType("decimal(18,2)").IsRequired();
@@ -39,6 +43,31 @@ public sealed class SalesDbContext : DbContext
             });
 
             order.Navigation(entity => entity.Lines).UsePropertyAccessMode(PropertyAccessMode.Field);
+        });
+
+        modelBuilder.Entity<Offer>(offer =>
+        {
+            offer.ToTable("Offers", "sales");
+            offer.HasKey(entity => entity.Id);
+            offer.Property(entity => entity.Name).HasMaxLength(200).IsRequired();
+            offer.Property(entity => entity.Description).HasMaxLength(1000).IsRequired();
+            offer.Property(entity => entity.DiscountType).IsRequired();
+            offer.Property(entity => entity.DiscountValue).HasColumnType("decimal(18,2)").IsRequired();
+            offer.Property(entity => entity.IsActive).IsRequired();
+            offer.Property(entity => entity.CreatedAt).IsRequired();
+            offer.Property(entity => entity.UpdatedAt).IsRequired();
+
+            offer.OwnsMany(entity => entity.Requirements, requirement =>
+            {
+                requirement.ToTable("OfferRequirements", "sales");
+                requirement.WithOwner().HasForeignKey("OfferId");
+                requirement.Property<Guid>("OfferId");
+                requirement.Property(entity => entity.ProductId).ValueGeneratedNever().IsRequired();
+                requirement.Property(entity => entity.Quantity).IsRequired();
+                requirement.HasKey("OfferId", nameof(OfferRequirement.ProductId));
+            });
+
+            offer.Navigation(entity => entity.Requirements).UsePropertyAccessMode(PropertyAccessMode.Field);
         });
     }
 }

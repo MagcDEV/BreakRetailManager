@@ -6,8 +6,13 @@ public sealed class SalesOrderLine
     {
     }
 
-    public SalesOrderLine(string productName, int quantity, decimal unitPrice)
+    public SalesOrderLine(Guid productId, string productName, int quantity, decimal unitPrice)
     {
+        if (productId == Guid.Empty)
+        {
+            throw new ArgumentException("Product is required.", nameof(productId));
+        }
+
         if (string.IsNullOrWhiteSpace(productName))
         {
             throw new ArgumentException("Product name is required.", nameof(productName));
@@ -24,12 +29,15 @@ public sealed class SalesOrderLine
         }
 
         Id = Guid.NewGuid();
+        ProductId = productId;
         ProductName = productName;
         Quantity = quantity;
         UnitPrice = unitPrice;
     }
 
     public Guid Id { get; private set; }
+
+    public Guid ProductId { get; private set; }
 
     public string ProductName { get; private set; } = string.Empty;
 

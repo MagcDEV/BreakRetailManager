@@ -1,5 +1,5 @@
 @page "/sales"
-@using BreakRetailManager.Sales.Domain
+@using BreakRetailManager.Sales.Contracts
 @using BreakRetailManager.Inventory.Contracts
 @attribute [Authorize]
 @inject SalesApiClient SalesApi
@@ -152,6 +152,26 @@
                         <span>Items:</span>
                         <span>@currentOrderLines.Sum(l => l.Quantity)</span>
                     </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Subtotal:</span>
+                        <span>@OrderSubtotal.ToString("C", arsCulture)</span>
+                    </div>
+                    @if (appliedOffers.Count > 0)
+                    {
+                        <div class="mb-2">
+                            <small class="fw-bold text-success">Applied Offers</small>
+                            <ul class="small mb-1">
+                                @foreach (var appliedOffer in appliedOffers)
+                                {
+                                    <li>@appliedOffer.Name (@appliedOffer.ApplicationCount)x: -@appliedOffer.DiscountAmount.ToString("C", arsCulture)</li>
+                                }
+                            </ul>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2 text-success">
+                            <span>Discount:</span>
+                            <span>-@OfferPreviewDiscountTotal.ToString("C", arsCulture)</span>
+                        </div>
+                    }
                     <hr />
                     <div class="d-flex justify-content-between mb-3">
                         <span class="fs-4 fw-bold">Total:</span>
@@ -227,6 +247,8 @@
                 <tr>
                     <th>Number</th>
                     <th>Created</th>
+                    <th>Subtotal</th>
+                    <th>Discount</th>
                     <th>Total</th>
                     <th>Lines</th>
                 </tr>
@@ -237,6 +259,8 @@
                     <tr>
                         <td>@order.Number</td>
                         <td>@order.CreatedAt.LocalDateTime.ToString("g")</td>
+                        <td>@order.Subtotal.ToString("C", arsCulture)</td>
+                        <td>@order.DiscountTotal.ToString("C", arsCulture)</td>
                         <td>@order.Total.ToString("C", arsCulture)</td>
                         <td>
                             <ul class="mb-0">
@@ -259,6 +283,8 @@
     private readonly List<OrderLineModel> currentOrderLines = new();
     private readonly List<SalesOrderDto> orders = new();
     private readonly List<LocationDto> locations = new();
+    private readonly List<OfferDto> activeOffers = new();
+    private readonly List<AppliedOfferPreviewModel> appliedOffers = new();
 
     private PosTab activeTab = PosTab.NewSale;
     private string barcodeInput = string.Empty;
@@ -272,10 +298,18 @@
     private PaymentMethod selectedPayment = PaymentMethod.Cash;
     private Guid selectedLocationId;
     private string selectedLocationName = string.Empty;
+    private decimal offerPreviewDiscountTotal;
 
     private ElementReference barcodeField;
 
-    private decimal OrderTotal => currentOrderLines.Sum(l => l.Quantity * l.UnitPrice);
+    private decimal OrderSubtotal => currentOrderLines.Sum(l => l.Quantity * l.UnitPrice);
+
+    private decimal OfferPreviewDiscountTotal => offerPreviewDiscountTotal;
+
+    private decimal OrderTotal => decimal.Round(
+        Math.Max(0, OrderSubtotal - OfferPreviewDiscountTotal),
+        2,
+        MidpointRounding.AwayFromZero);
 
     protected override async Task OnInitializedAsync()
     {
@@ -284,7 +318,10 @@
         {
             await SalesApi.SyncOutboxAsync();
             locations.AddRange(await InventoryApi.GetLocationsAsync());
+            activeOffers.AddRange(await SalesApi.GetActiveOffersAsync());
         }
+
+        RecalculateOfferPreview();
         outboxCount = (await Store.GetOutboxAsync()).Count;
     }
 
@@ -316,6 +353,7 @@
         if (existing is not null)
         {
             existing.Quantity++;
+            RecalculateOfferPreview();
             barcodeInput = string.Empty;
             return;
         }
@@ -347,6 +385,7 @@
             AvailableStock = product.StockQuantity
         });
 
+        RecalculateOfferPreview();
         barcodeInput = string.Empty;
         isSearching = false;
     }
@@ -368,12 +407,14 @@
 
         scanError = null;
         line.Quantity = newQty;
+        RecalculateOfferPreview();
     }
 
     private void RemoveLine(OrderLineModel line)
     {
         currentOrderLines.Remove(line);
         scanError = null;
+        RecalculateOfferPreview();
     }
 
     private void CancelOrder()
@@ -383,6 +424,7 @@
         statusMessage = "Order cancelled.";
         statusCss = "alert-warning";
         scanError = null;
+        RecalculateOfferPreview();
     }
 
     private async Task ConfirmSaleAsync()
@@ -407,12 +449,17 @@
         }
 
         var isOffline = created.Number.StartsWith("OFFLINE-", StringComparison.OrdinalIgnoreCase);
+        var finalTotal = created.Total;
+        var discountText = created.DiscountTotal > 0
+            ? $" (Discount: {created.DiscountTotal.ToString("C", arsCulture)})"
+            : string.Empty;
         statusMessage = isOffline
-            ? $"Sale saved offline (queued for sync). Total: {OrderTotal.ToString("C", arsCulture)}"
-            : $"Sale confirmed! Order #{created.Number}. Total: {OrderTotal.ToString("C", arsCulture)}";
+            ? $"Sale saved offline (queued for sync). Total: {finalTotal.ToString("C", arsCulture)}{discountText}"
+            : $"Sale confirmed! Order #{created.Number}. Total: {finalTotal.ToString("C", arsCulture)}{discountText}";
         statusCss = isOffline ? "alert-warning" : "alert-success";
 
         currentOrderLines.Clear();
+        RecalculateOfferPreview();
         selectedPayment = PaymentMethod.Cash;
         outboxCount = (await Store.GetOutboxAsync()).Count;
         isSubmitting = false;
@@ -430,12 +477,145 @@
         statusMessage = null;
         await SalesApi.SyncOutboxAsync();
         IsOnline = await Connectivity.IsOnlineAsync();
+        if (IsOnline)
+        {
+            activeOffers.Clear();
+            activeOffers.AddRange(await SalesApi.GetActiveOffersAsync());
+            RecalculateOfferPreview();
+        }
         outboxCount = (await Store.GetOutboxAsync()).Count;
         statusMessage = "Sync complete.";
         statusCss = "alert-success";
     }
 
+    private void RecalculateOfferPreview()
+    {
+        appliedOffers.Clear();
+        offerPreviewDiscountTotal = 0;
+
+        if (currentOrderLines.Count == 0 || activeOffers.Count == 0)
+        {
+            return;
+        }
+
+        var subtotal = OrderSubtotal;
+        var buckets = currentOrderLines
+            .GroupBy(line => line.ProductId)
+            .ToDictionary(
+                group => group.Key,
+                group => new ProductBucket(
+                    group.Sum(line => line.Quantity),
+                    group.Sum(line => line.Quantity * line.UnitPrice)));
+
+        var totalDiscount = 0m;
+        foreach (var offer in activeOffers
+                     .Where(offer => offer.IsActive)
+                     .OrderBy(offer => offer.CreatedAt)
+                     .ThenBy(offer => offer.Id))
+        {
+            var applicationCount = GetApplicationCount(offer, buckets);
+            if (applicationCount == 0)
+            {
+                continue;
+            }
+
+            var matchedAmount = ConsumeMatchedAmount(offer, buckets, applicationCount);
+            var offerDiscount = CalculateOfferDiscount(offer, matchedAmount, applicationCount);
+            if (offerDiscount <= 0)
+            {
+                continue;
+            }
+
+            var remainingDiscount = Math.Max(0, subtotal - totalDiscount);
+            var cappedDiscount = Math.Min(offerDiscount, remainingDiscount);
+            if (cappedDiscount <= 0)
+            {
+                break;
+            }
+
+            totalDiscount += cappedDiscount;
+            appliedOffers.Add(new AppliedOfferPreviewModel
+            {
+                Name = offer.Name,
+                ApplicationCount = applicationCount,
+                DiscountAmount = cappedDiscount
+            });
+
+            if (totalDiscount >= subtotal)
+            {
+                break;
+            }
+        }
+
+        offerPreviewDiscountTotal = decimal.Round(
+            Math.Min(totalDiscount, subtotal),
+            2,
+            MidpointRounding.AwayFromZero);
+    }
+
+    private static int GetApplicationCount(OfferDto offer, IReadOnlyDictionary<Guid, ProductBucket> buckets)
+    {
+        var applicationCount = int.MaxValue;
+
+        foreach (var requirement in offer.Requirements)
+        {
+            if (!buckets.TryGetValue(requirement.ProductId, out var bucket))
+            {
+                return 0;
+            }
+
+            var possibleApplications = bucket.Quantity / requirement.Quantity;
+            if (possibleApplications == 0)
+            {
+                return 0;
+            }
+
+            applicationCount = Math.Min(applicationCount, possibleApplications);
+        }
+
+        return applicationCount == int.MaxValue ? 0 : applicationCount;
+    }
+
+    private static decimal ConsumeMatchedAmount(
+        OfferDto offer,
+        IReadOnlyDictionary<Guid, ProductBucket> buckets,
+        int applicationCount)
+    {
+        var matchedAmount = 0m;
+
+        foreach (var requirement in offer.Requirements)
+        {
+            var quantityToConsume = requirement.Quantity * applicationCount;
+            var bucket = buckets[requirement.ProductId];
+            matchedAmount += bucket.Consume(quantityToConsume);
+        }
+
+        return matchedAmount;
+    }
+
+    private static decimal CalculateOfferDiscount(OfferDto offer, decimal matchedAmount, int applicationCount)
+    {
+        var rawDiscount = offer.DiscountType switch
+        {
+            OfferDiscountType.Percentage => matchedAmount * (offer.DiscountValue / 100m),
+            OfferDiscountType.FixedAmount => offer.DiscountValue * applicationCount,
+            _ => 0
+        };
+
+        return decimal.Round(
+            Math.Min(rawDiscount, matchedAmount),
+            2,
+            MidpointRounding.AwayFromZero);
+    }
+
     private enum PosTab { NewSale, History }
+
+    private sealed class AppliedOfferPreviewModel
+    {
+        public string Name { get; set; } = string.Empty;
+        public int ApplicationCount { get; set; }
+        public decimal DiscountAmount { get; set; }
+    }
 
     private sealed class OrderLineModel
     {
@@ -445,5 +625,43 @@
         public decimal UnitPrice { get; set; }
         public int Quantity { get; set; }
         public int AvailableStock { get; set; }
+    }
+
+    private sealed class ProductBucket
+    {
+        public ProductBucket(int quantity, decimal amount)
+        {
+            Quantity = quantity;
+            Amount = amount;
+        }
+
+        public int Quantity { get; private set; }
+        public decimal Amount { get; private set; }
+
+        public decimal Consume(int quantity)
+        {
+            if (quantity <= 0 || Quantity == 0)
+            {
+                return 0;
+            }
+
+            if (quantity > Quantity)
+            {
+                throw new InvalidOperationException("Cannot consume more quantity than available in product bucket.");
+            }
+
+            if (quantity == Quantity)
+            {
+                var allAmount = Amount;
+                Quantity = 0;
+                Amount = 0;
+                return allAmount;
+            }
+
+            var consumed = Amount * quantity / Quantity;
+            Quantity -= quantity;
+            Amount -= consumed;
+            return consumed;
+        }
     }
 }

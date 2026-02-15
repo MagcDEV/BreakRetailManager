@@ -8,6 +8,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Azure.Identity" Version="*" />
+    <PackageReference Include="Azure.Security.KeyVault.Certificates" Version="*" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="*" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="*" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="*">

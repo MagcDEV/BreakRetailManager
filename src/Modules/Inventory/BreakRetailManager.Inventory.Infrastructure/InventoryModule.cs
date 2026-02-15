@@ -1,10 +1,12 @@
 using BreakRetailManager.BuildingBlocks.Modules;
+using BreakRetailManager.BuildingBlocks.Realtime;
 using BreakRetailManager.Inventory.Application;
 using BreakRetailManager.Inventory.Contracts;
 using BreakRetailManager.Inventory.Infrastructure.Data;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -116,10 +118,26 @@ public sealed class InventoryModule : IModule
             .Produces<IReadOnlyList<LocationStockDto>>()
             .RequireAuthorization("Cashier");
 
-        group.MapPatch("/locations/{locationId:guid}/stock/{productId:guid}", async (Guid locationId, Guid productId, StockUpdateRequest request, ProductService service, CancellationToken cancellationToken) =>
+        group.MapPatch("/locations/{locationId:guid}/stock/{productId:guid}", async (
+            Guid locationId,
+            Guid productId,
+            StockUpdateRequest request,
+            ProductService service,
+            IHubContext<InventoryHub> hubContext,
+            CancellationToken cancellationToken) =>
         {
             var stock = await service.UpdateLocationStockAsync(locationId, productId, request.Quantity, cancellationToken);
-            return stock is null ? Results.NotFound() : Results.Ok(stock);
+            if (stock is null)
+            {
+                return Results.NotFound();
+            }
+
+            await hubContext.Clients.All.SendAsync(
+                InventoryHub.StockChangedMethod,
+                new InventoryStockChangedEvent(stock.ProductId, stock.LocationId, stock.Quantity, DateTimeOffset.UtcNow),
+                cancellationToken);
+
+            return Results.Ok(stock);
         }).Produces<LocationStockDto>();
     }
 }

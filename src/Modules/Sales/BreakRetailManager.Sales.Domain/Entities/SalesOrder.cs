@@ -42,7 +42,11 @@ public sealed class SalesOrder
 
     public IReadOnlyCollection<SalesOrderLine> Lines => _lines;
 
-    public decimal Total => _lines.Sum(line => line.LineTotal);
+    public decimal Subtotal => _lines.Sum(line => line.LineTotal);
+
+    public decimal DiscountTotal { get; private set; }
+
+    public decimal Total => Subtotal - DiscountTotal;
 
     public bool RequiresFiscalAuthorization => PaymentMethod == PaymentMethod.Card;
 
@@ -61,9 +65,24 @@ public sealed class SalesOrder
         LocationId = locationId;
     }
 
-    public void AddLine(string productName, int quantity, decimal unitPrice)
+    public void AddLine(Guid productId, string productName, int quantity, decimal unitPrice)
     {
-        _lines.Add(new SalesOrderLine(productName, quantity, unitPrice));
+        _lines.Add(new SalesOrderLine(productId, productName, quantity, unitPrice));
+    }
+
+    public void SetDiscount(decimal discountTotal)
+    {
+        if (discountTotal < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(discountTotal), "Discount cannot be negative.");
+        }
+
+        if (discountTotal > Subtotal)
+        {
+            throw new ArgumentOutOfRangeException(nameof(discountTotal), "Discount cannot exceed order subtotal.");
+        }
+
+        DiscountTotal = decimal.Round(discountTotal, 2, MidpointRounding.AwayFromZero);
     }
 
     public void SetFiscalAuthorization(string cae, DateOnly caeExpirationDate, long invoiceNumber, int pointOfSale, int invoiceType)

@@ -1,4 +1,5 @@
 using BreakRetailManager.BuildingBlocks.Modules;
+using BreakRetailManager.BuildingBlocks.Realtime;
 using BreakRetailManager.Inventory.Infrastructure;
 using BreakRetailManager.Inventory.Infrastructure.Data;
 using BreakRetailManager.Sales.Infrastructure;
@@ -12,6 +13,7 @@ using Microsoft.Identity.Web;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
+builder.Services.AddSignalR();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
@@ -73,5 +75,7 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
     .AllowAnonymous();
 
 app.MapModules();
+app.MapHub<InventoryHub>(InventoryHub.HubPath)
+    .RequireAuthorization("Manager");
 
 app.Run();

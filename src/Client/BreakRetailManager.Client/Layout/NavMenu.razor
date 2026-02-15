@@ -1,5 +1,7 @@
 @inject NavigationManager Navigation
 @inject SignOutSessionStateManager SignOutSessionStateManager
+@inject UserRoleProvider RoleProvider
+@implements IDisposable
 
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
@@ -17,27 +19,42 @@
                 <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
             </NavLink>
         </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="sales">
-                <span class="bi bi-bag-check-fill-nav-menu" aria-hidden="true"></span> Sales
-            </NavLink>
-        </div>
-        <AuthorizeView Roles="Admin,Manager">
+        <AuthorizeView>
             <Authorized>
                 <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="inventory">
-                        <span class="bi bi-box-seam-fill-nav-menu" aria-hidden="true"></span> Inventory
+                    <NavLink class="nav-link" href="sales">
+                        <span class="bi bi-bag-check-fill-nav-menu" aria-hidden="true"></span> Sales
                     </NavLink>
                 </div>
             </Authorized>
         </AuthorizeView>
-        <AuthorizeView Roles="Admin">
+        <AuthorizeView>
             <Authorized>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="admin/users">
-                        <span class="bi bi-people-fill-nav-menu" aria-hidden="true"></span> Users
-                    </NavLink>
-                </div>
+                @if (IsManagerOrAdmin)
+                {
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="inventory">
+                            <span class="bi bi-box-seam-fill-nav-menu" aria-hidden="true"></span> Inventory
+                        </NavLink>
+                    </div>
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="offers">
+                            <span class="bi bi-tags-fill-nav-menu" aria-hidden="true"></span> Offers
+                        </NavLink>
+                    </div>
+                }
+            </Authorized>
+        </AuthorizeView>
+        <AuthorizeView>
+            <Authorized>
+                @if (IsAdmin)
+                {
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="admin/users">
+                            <span class="bi bi-people-fill-nav-menu" aria-hidden="true"></span> Users
+                        </NavLink>
+                    </div>
+                }
             </Authorized>
         </AuthorizeView>
         <AuthorizeView>
@@ -62,6 +79,15 @@
 @code {
     private bool collapseNavMenu = true;
 
+    private bool IsAdmin => RoleProvider.Roles.Contains("Admin", StringComparer.OrdinalIgnoreCase);
+    private bool IsManagerOrAdmin => IsAdmin || RoleProvider.Roles.Contains("Manager", StringComparer.OrdinalIgnoreCase);
+
+    protected override async Task OnInitializedAsync()
+    {
+        RoleProvider.RolesChanged += HandleRolesChanged;
+        await RoleProvider.InitializeAsync();
+    }
+
     private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
 
     private void ToggleNavMenu()
@@ -73,5 +99,15 @@
     {
         await SignOutSessionStateManager.SetSignOutState();
         Navigation.NavigateTo("authentication/logout");
+    }
+
+    private void HandleRolesChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        RoleProvider.RolesChanged -= HandleRolesChanged;
     }
 }

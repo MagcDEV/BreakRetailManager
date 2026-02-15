@@ -1,5 +1,3 @@
-using BreakRetailManager.Sales.Domain;
-
 namespace BreakRetailManager.Sales.Contracts;
 
 public sealed record CreateSalesOrderRequest(

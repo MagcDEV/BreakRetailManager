@@ -4,9 +4,17 @@ public sealed class ArcaSettings
 {
     public const string SectionName = "Arca";
 
-    public string CertificatePath { get; set; } = string.Empty;
+    /// <summary>"File" for local PEM files, "KeyVault" for Azure Key Vault.</summary>
+    public string CertificateSource { get; set; } = "File";
 
+    // File-based settings (Development)
+    public string CertificatePath { get; set; } = string.Empty;
     public string PrivateKeyPath { get; set; } = string.Empty;
+    public string? CertificatePassword { get; set; }
+
+    // Key Vault settings (Production)
+    public string KeyVaultUri { get; set; } = string.Empty;
+    public string CertificateName { get; set; } = string.Empty;
 
     public long Cuit { get; set; }
 

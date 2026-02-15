@@ -1,0 +1,438 @@
+@page "/offers"
+@using BreakRetailManager.Inventory.Contracts
+@using BreakRetailManager.Sales.Contracts
+@attribute [Authorize(Roles = "Admin,Manager")]
+@inject SalesApiClient SalesApi
+@inject InventoryApiClient InventoryApi
+
+<PageTitle>Offers</PageTitle>
+
+<h1>Offers</h1>
+
+@if (!string.IsNullOrWhiteSpace(statusMessage))
+{
+    <div class="alert @statusCss alert-dismissible" role="alert">
+        @statusMessage
+        <button type="button" class="btn-close" @onclick="() => statusMessage = null"></button>
+    </div>
+}
+
+<ul class="nav nav-tabs mb-4">
+    <li class="nav-item">
+        <button class="nav-link @(activeTab == Tab.Offers ? "active" : "")" @onclick="() => activeTab = Tab.Offers">Offers</button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link @(activeTab == Tab.AddOffer ? "active" : "")" @onclick="StartCreate">+ Offer</button>
+    </li>
+    @if (activeTab == Tab.EditOffer)
+    {
+        <li class="nav-item">
+            <button class="nav-link active">Edit Offer</button>
+        </li>
+    }
+</ul>
+
+@if (activeTab == Tab.Offers)
+{
+    @if (offers.Count == 0)
+    {
+        <p><em>No offers found.</em></p>
+    }
+    else
+    {
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Discount</th>
+                    <th>Requirements</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var offer in offers)
+                {
+                    <tr>
+                        <td>
+                            <strong>@offer.Name</strong>
+                            @if (!string.IsNullOrWhiteSpace(offer.Description))
+                            {
+                                <br /><small class="text-muted">@offer.Description</small>
+                            }
+                        </td>
+                        <td>@FormatDiscount(offer)</td>
+                        <td>@FormatRequirements(offer.Requirements)</td>
+                        <td>
+                            @if (offer.IsActive)
+                            {
+                                <span class="badge bg-success">Active</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">Inactive</span>
+                            }
+                        </td>
+                        <td class="text-nowrap">
+                            <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => BeginEdit(offer)">Edit</button>
+                            <button class="btn btn-sm @(offer.IsActive ? "btn-outline-warning" : "btn-outline-success") me-1"
+                                    @onclick="() => ToggleActiveAsync(offer)" disabled="@isSubmitting">
+                                @(offer.IsActive ? "Deactivate" : "Activate")
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteOfferAsync(offer)" disabled="@isSubmitting">Delete</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@if (activeTab == Tab.AddOffer)
+{
+    <EditForm Model="createModel" OnValidSubmit="CreateOfferAsync" class="mb-4">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+        @OfferForm(createModel, "Create Offer")
+    </EditForm>
+}
+
+@if (activeTab == Tab.EditOffer)
+{
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">Editing: @editModel.Name</h5>
+        <button class="btn btn-sm btn-outline-secondary" @onclick="() => activeTab = Tab.Offers">Cancel</button>
+    </div>
+
+    <EditForm Model="editModel" OnValidSubmit="UpdateOfferAsync" class="mb-4">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+        @OfferForm(editModel, "Save Changes")
+    </EditForm>
+}
+
+@code {
+    private readonly List<OfferDto> offers = new();
+    private readonly List<ProductDto> products = new();
+    private readonly OfferFormModel createModel = new();
+    private readonly OfferFormModel editModel = new();
+
+    private Tab activeTab = Tab.Offers;
+    private Guid editOfferId;
+    private bool isSubmitting;
+    private string? statusMessage;
+    private string statusCss = "alert-info";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        var productTask = InventoryApi.GetProductsAsync();
+        var offerTask = SalesApi.GetOffersAsync();
+        await Task.WhenAll(productTask, offerTask);
+
+        products.Clear();
+        products.AddRange(productTask.Result.OrderBy(product => product.Name));
+
+        offers.Clear();
+        offers.AddRange(offerTask.Result.OrderByDescending(offer => offer.CreatedAt));
+    }
+
+    private void StartCreate()
+    {
+        createModel.Reset();
+        activeTab = Tab.AddOffer;
+    }
+
+    private void BeginEdit(OfferDto offer)
+    {
+        editOfferId = offer.Id;
+        editModel.Load(offer);
+        activeTab = Tab.EditOffer;
+    }
+
+    private async Task CreateOfferAsync()
+    {
+        if (!TryBuildRequirements(createModel.Requirements, out var requirements))
+        {
+            return;
+        }
+
+        isSubmitting = true;
+        statusMessage = null;
+
+        var request = new CreateOfferRequest(
+            createModel.Name,
+            createModel.Description,
+            createModel.DiscountType,
+            createModel.DiscountValue,
+            requirements);
+
+        var created = await SalesApi.CreateOfferAsync(request);
+        if (created is not null)
+        {
+            statusMessage = $"Offer '{created.Name}' created.";
+            statusCss = "alert-success";
+            createModel.Reset();
+            activeTab = Tab.Offers;
+            await LoadDataAsync();
+        }
+        else
+        {
+            statusMessage = "Failed to create offer.";
+            statusCss = "alert-danger";
+        }
+
+        isSubmitting = false;
+    }
+
+    private async Task UpdateOfferAsync()
+    {
+        if (!TryBuildRequirements(editModel.Requirements, out var requirements))
+        {
+            return;
+        }
+
+        isSubmitting = true;
+        statusMessage = null;
+
+        var request = new UpdateOfferRequest(
+            editModel.Name,
+            editModel.Description,
+            editModel.DiscountType,
+            editModel.DiscountValue,
+            requirements);
+
+        var updated = await SalesApi.UpdateOfferAsync(editOfferId, request);
+        if (updated is not null)
+        {
+            statusMessage = $"Offer '{updated.Name}' updated.";
+            statusCss = "alert-success";
+            activeTab = Tab.Offers;
+            await LoadDataAsync();
+        }
+        else
+        {
+            statusMessage = "Failed to update offer.";
+            statusCss = "alert-danger";
+        }
+
+        isSubmitting = false;
+    }
+
+    private async Task ToggleActiveAsync(OfferDto offer)
+    {
+        isSubmitting = true;
+        statusMessage = null;
+
+        var updated = offer.IsActive
+            ? await SalesApi.DeactivateOfferAsync(offer.Id)
+            : await SalesApi.ActivateOfferAsync(offer.Id);
+
+        if (updated is not null)
+        {
+            statusMessage = $"Offer '{updated.Name}' {(updated.IsActive ? "activated" : "deactivated")}.";
+            statusCss = "alert-success";
+            await LoadDataAsync();
+        }
+        else
+        {
+            statusMessage = "Failed to update offer status.";
+            statusCss = "alert-danger";
+        }
+
+        isSubmitting = false;
+    }
+
+    private async Task DeleteOfferAsync(OfferDto offer)
+    {
+        isSubmitting = true;
+        statusMessage = null;
+
+        var deleted = await SalesApi.DeleteOfferAsync(offer.Id);
+        if (deleted)
+        {
+            statusMessage = $"Offer '{offer.Name}' deleted.";
+            statusCss = "alert-success";
+            await LoadDataAsync();
+        }
+        else
+        {
+            statusMessage = "Failed to delete offer.";
+            statusCss = "alert-danger";
+        }
+
+        isSubmitting = false;
+    }
+
+    private bool TryBuildRequirements(
+        IReadOnlyList<OfferRequirementModel> models,
+        out IReadOnlyList<OfferRequirementRequest> requirements)
+    {
+        requirements = models
+            .Where(model => model.ProductId != Guid.Empty && model.Quantity > 0)
+            .Select(model => new OfferRequirementRequest(model.ProductId, model.Quantity))
+            .ToList();
+
+        if (requirements.Count == 0)
+        {
+            statusMessage = "At least one valid offer requirement is required.";
+            statusCss = "alert-danger";
+            return false;
+        }
+
+        return true;
+    }
+
+    private string FormatDiscount(OfferDto offer)
+    {
+        return offer.DiscountType == OfferDiscountType.Percentage
+            ? $"{offer.DiscountValue:N2}%"
+            : $"{offer.DiscountValue:C2}";
+    }
+
+    private string FormatRequirements(IReadOnlyList<OfferRequirementDto> requirements)
+    {
+        return string.Join(", ", requirements.Select(requirement =>
+            $"{requirement.Quantity}x {products.FirstOrDefault(product => product.Id == requirement.ProductId)?.Name ?? requirement.ProductId.ToString()}"));
+    }
+
+    private RenderFragment OfferForm(OfferFormModel model, string submitText) => @<div>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label">Name</label>
+                <InputText class="form-control" @bind-Value="model.Name" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Description</label>
+                <InputText class="form-control" @bind-Value="model.Description" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Discount Type</label>
+                <InputSelect class="form-select" @bind-Value="model.DiscountType">
+                    <option value="@OfferDiscountType.Percentage">Percentage</option>
+                    <option value="@OfferDiscountType.FixedAmount">Fixed amount</option>
+                </InputSelect>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Discount Value</label>
+                <InputNumber class="form-control" @bind-Value="model.DiscountValue" />
+            </div>
+            <div class="col-md-12">
+                <label class="form-label">Requirements</label>
+                @foreach (var requirement in model.Requirements)
+                {
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-7">
+                            <InputSelect class="form-select" @bind-Value="requirement.ProductId">
+                                <option value="@Guid.Empty">-- Select product --</option>
+                                @foreach (var product in products)
+                                {
+                                    <option value="@product.Id">@product.Name</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-3">
+                            <InputNumber class="form-control" @bind-Value="requirement.Quantity" />
+                        </div>
+                        <div class="col-md-2">
+                            <button class="btn btn-outline-danger w-100"
+                                    type="button"
+                                    disabled="@(model.Requirements.Count <= 1)"
+                                    @onclick="() => RemoveRequirement(model, requirement)">
+                                Remove
+                            </button>
+                        </div>
+                    </div>
+                }
+                <button class="btn btn-sm btn-outline-secondary" type="button" @onclick="() => AddRequirement(model)">
+                    + Requirement
+                </button>
+            </div>
+            <div class="col-md-12">
+                <button class="btn btn-primary me-2" type="submit" disabled="@isSubmitting">@submitText</button>
+                <button class="btn btn-outline-secondary" type="button" @onclick="() => activeTab = Tab.Offers">Cancel</button>
+            </div>
+        </div>
+    </div>;
+
+    private static void AddRequirement(OfferFormModel model)
+    {
+        model.Requirements.Add(new OfferRequirementModel());
+    }
+
+    private static void RemoveRequirement(OfferFormModel model, OfferRequirementModel requirement)
+    {
+        if (model.Requirements.Count <= 1)
+        {
+            return;
+        }
+
+        model.Requirements.Remove(requirement);
+    }
+
+    private enum Tab
+    {
+        Offers,
+        AddOffer,
+        EditOffer
+    }
+
+    private sealed class OfferFormModel
+    {
+        [Required]
+        [StringLength(200)]
+        public string Name { get; set; } = string.Empty;
+
+        [StringLength(1000)]
+        public string Description { get; set; } = string.Empty;
+
+        public OfferDiscountType DiscountType { get; set; } = OfferDiscountType.Percentage;
+
+        [Range(typeof(decimal), "0.01", "1000000")]
+        public decimal DiscountValue { get; set; } = 1;
+
+        public List<OfferRequirementModel> Requirements { get; } = [new()];
+
+        public void Reset()
+        {
+            Name = string.Empty;
+            Description = string.Empty;
+            DiscountType = OfferDiscountType.Percentage;
+            DiscountValue = 1;
+            Requirements.Clear();
+            Requirements.Add(new OfferRequirementModel());
+        }
+
+        public void Load(OfferDto offer)
+        {
+            Name = offer.Name;
+            Description = offer.Description;
+            DiscountType = offer.DiscountType;
+            DiscountValue = offer.DiscountValue;
+            Requirements.Clear();
+            Requirements.AddRange(offer.Requirements
+                .Select(requirement => new OfferRequirementModel
+                {
+                    ProductId = requirement.ProductId,
+                    Quantity = requirement.Quantity
+                }));
+
+            if (Requirements.Count == 0)
+            {
+                Requirements.Add(new OfferRequirementModel());
+            }
+        }
+    }
+
+    private sealed class OfferRequirementModel
+    {
+        public Guid ProductId { get; set; }
+
+        [Range(1, 100000)]
+        public int Quantity { get; set; } = 1;
+    }
+}

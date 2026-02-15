@@ -7,6 +7,8 @@ namespace BreakRetailManager.Client.Services;
 public sealed class SalesApiClient
 {
     private const string OrdersEndpoint = "api/sales/orders";
+    private const string OffersEndpoint = "api/sales/offers";
+    private const string ActiveOffersEndpoint = "api/sales/offers/active";
 
     private readonly HttpClient _httpClient;
     private readonly IndexedDbSalesStore _store;
@@ -85,6 +87,114 @@ public sealed class SalesApiClient
         }
     }
 
+    public async Task<IReadOnlyList<OfferDto>> GetOffersAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<List<OfferDto>>(OffersEndpoint, cancellationToken)
+                ?? [];
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogWarning(exception, "Failed to fetch offers.");
+            return [];
+        }
+    }
+
+    public async Task<IReadOnlyList<OfferDto>> GetActiveOffersAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<List<OfferDto>>(ActiveOffersEndpoint, cancellationToken)
+                ?? [];
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogWarning(exception, "Failed to fetch active offers.");
+            return [];
+        }
+    }
+
+    public async Task<OfferDto?> CreateOfferAsync(CreateOfferRequest request, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync(OffersEndpoint, request, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<OfferDto>(cancellationToken: cancellationToken);
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogWarning(exception, "Failed to create offer.");
+            return null;
+        }
+    }
+
+    public async Task<OfferDto?> UpdateOfferAsync(Guid id, UpdateOfferRequest request, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.PutAsJsonAsync($"{OffersEndpoint}/{id}", request, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<OfferDto>(cancellationToken: cancellationToken);
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogWarning(exception, "Failed to update offer {OfferId}.", id);
+            return null;
+        }
+    }
+
+    public async Task<OfferDto?> ActivateOfferAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsync($"{OffersEndpoint}/{id}/activate", content: null, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<OfferDto>(cancellationToken: cancellationToken);
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogWarning(exception, "Failed to activate offer {OfferId}.", id);
+            return null;
+        }
+    }
+
+    public async Task<OfferDto?> DeactivateOfferAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsync($"{OffersEndpoint}/{id}/deactivate", content: null, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<OfferDto>(cancellationToken: cancellationToken);
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogWarning(exception, "Failed to deactivate offer {OfferId}.", id);
+            return null;
+        }
+    }
+
+    public async Task<bool> DeleteOfferAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.DeleteAsync($"{OffersEndpoint}/{id}", cancellationToken);
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                return false;
+            }
+
+            response.EnsureSuccessStatusCode();
+            return true;
+        }
+        catch (HttpRequestException exception)
+        {
+            _logger.LogWarning(exception, "Failed to delete offer {OfferId}.", id);
+            return false;
+        }
+    }
+
     public async Task<int> SyncOutboxAsync(CancellationToken cancellationToken = default)
     {
         if (!await _connectivity.IsOnlineAsync())
@@ -141,7 +251,7 @@ public sealed class SalesApiClient
         var localId = Guid.NewGuid();
         var createdAt = DateTimeOffset.UtcNow;
         var lines = request.Lines
-            .Select(line => new SalesOrderLineDto(Guid.NewGuid(), line.ProductName, line.Quantity, line.UnitPrice))
+            .Select(line => new SalesOrderLineDto(Guid.NewGuid(), line.ProductId, line.ProductName, line.Quantity, line.UnitPrice))
             .ToList();
 
         var order = new SalesOrderDto(
@@ -155,7 +265,9 @@ public sealed class SalesApiClient
             Cae: null,
             CaeExpirationDate: null,
             InvoiceNumber: 0,
-            PointOfSale: 0);
+            PointOfSale: 0,
+            Subtotal: lines.Sum(line => line.UnitPrice * line.Quantity),
+            DiscountTotal: 0);
 
         await _store.AddOutboxAsync(new OutboxOrder(localId, request, createdAt));
 

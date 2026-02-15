@@ -5,11 +5,13 @@ namespace BreakRetailManager.Sales.Application;
 public sealed class SalesOrderService
 {
     private readonly ISalesOrderRepository _repository;
+    private readonly IOfferRepository _offerRepository;
     private readonly IArcaFiscalService _fiscalService;
 
-    public SalesOrderService(ISalesOrderRepository repository, IArcaFiscalService fiscalService)
+    public SalesOrderService(ISalesOrderRepository repository, IOfferRepository offerRepository, IArcaFiscalService fiscalService)
     {
         _repository = repository;
+        _offerRepository = offerRepository;
         _fiscalService = fiscalService;
     }
 
@@ -24,6 +26,9 @@ public sealed class SalesOrderService
         CancellationToken cancellationToken = default)
     {
         var order = SalesMappings.FromRequest(request);
+        var activeOffers = await _offerRepository.GetActiveAsync(cancellationToken);
+        var totalDiscount = OfferDiscountCalculator.CalculateDiscount(order, activeOffers);
+        order.SetDiscount(totalDiscount);
 
         if (order.RequiresFiscalAuthorization)
         {

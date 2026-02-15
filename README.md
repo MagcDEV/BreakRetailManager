@@ -28,6 +28,11 @@ dotnet run --project src/Api/BreakRetailManager.Api
 dotnet run --project src/Client/BreakRetailManager.Client
 ```
 
+## Run tests
+```bash
+dotnet test BreakRetailManager.slnx --nologo
+```
+
 ## Offline-first notes
 - Orders are cached in IndexedDB and queued offline in an outbox.
 - The Sales page can sync queued orders once the client is online again.

@@ -19,21 +19,23 @@ public sealed class WsaaClient
 
     private readonly HttpClient _httpClient;
     private readonly ArcaSettings _settings;
+    private readonly ICertificateProvider _certificateProvider;
     private readonly ILogger<WsaaClient> _logger;
     private readonly SemaphoreSlim _semaphore = new(1, 1);
 
     private WsaaTicket? _cachedTicket;
 
-    public WsaaClient(HttpClient httpClient, IOptions<ArcaSettings> settings, ILogger<WsaaClient> logger)
+    public WsaaClient(HttpClient httpClient, IOptions<ArcaSettings> settings, ICertificateProvider certificateProvider, ILogger<WsaaClient> logger)
     {
         _httpClient = httpClient;
         _settings = settings.Value;
+        _certificateProvider = certificateProvider;
         _logger = logger;
     }
 
     public async Task<WsaaTicket> GetTicketAsync(CancellationToken cancellationToken = default)
     {
-        if (_cachedTicket is not null && _cachedTicket.ExpirationTime > DateTime.UtcNow.AddMinutes(-5))
+        if (_cachedTicket is not null && _cachedTicket.ExpirationTime > DateTime.UtcNow.AddMinutes(5))
         {
             return _cachedTicket;
         }
@@ -42,7 +44,7 @@ public sealed class WsaaClient
         try
         {
             // Double-check after acquiring lock
-            if (_cachedTicket is not null && _cachedTicket.ExpirationTime > DateTime.UtcNow.AddMinutes(-5))
+            if (_cachedTicket is not null && _cachedTicket.ExpirationTime > DateTime.UtcNow.AddMinutes(5))
             {
                 return _cachedTicket;
             }
@@ -55,13 +57,12 @@ public sealed class WsaaClient
             byte[] signedCms;
             try
             {
-                signedCms = SignWithCertificate(loginTicketXml);
+                signedCms = await SignWithCertificateAsync(loginTicketXml, cancellationToken);
                 _logger.LogDebug("CMS signed successfully, {Bytes} bytes", signedCms.Length);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to sign LoginTicketRequest. CertPath={CertPath}, KeyPath={KeyPath}",
-                    _settings.CertificatePath, _settings.PrivateKeyPath);
+                _logger.LogError(ex, "Failed to sign LoginTicketRequest");
                 throw;
             }
 
@@ -130,15 +131,13 @@ public sealed class WsaaClient
             """;
     }
 
-    private byte[] SignWithCertificate(string content)
+    private async Task<byte[]> SignWithCertificateAsync(string content, CancellationToken cancellationToken)
     {
-        using var cert = X509Certificate2.CreateFromPemFile(_settings.CertificatePath, _settings.PrivateKeyPath);
-        // On Windows, re-export to ensure the private key is usable for CMS signing
-        using var exportedCert = X509CertificateLoader.LoadPkcs12(cert.Export(X509ContentType.Pfx), null);
+        using var cert = await _certificateProvider.GetCertificateAsync(cancellationToken);
 
         var contentInfo = new ContentInfo(Encoding.UTF8.GetBytes(content));
         var cms = new SignedCms(contentInfo);
-        var signer = new CmsSigner(exportedCert)
+        var signer = new CmsSigner(cert)
         {
             IncludeOption = X509IncludeOption.EndCertOnly
         };

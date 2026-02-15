@@ -11,6 +11,7 @@
   </Folder>
   <Folder Name="/src/Modules/" />
   <Folder Name="/src/Modules/Sales/">
+    <Project Path="src/Modules/Sales/BreakRetailManager.Sales.Application.Tests/BreakRetailManager.Sales.Application.Tests.csproj" />
     <Project Path="src/Modules/Sales/BreakRetailManager.Sales.Application/BreakRetailManager.Sales.Application.csproj" />
     <Project Path="src/Modules/Sales/BreakRetailManager.Sales.Contracts/BreakRetailManager.Sales.Contracts.csproj" />
     <Project Path="src/Modules/Sales/BreakRetailManager.Sales.Domain/BreakRetailManager.Sales.Domain.csproj" />

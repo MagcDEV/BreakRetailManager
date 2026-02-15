@@ -35,6 +35,7 @@ builder.Services.AddScoped<ConnectivityService>();
 builder.Services.AddScoped<SalesApiClient>();
 builder.Services.AddScoped<UserApiClient>();
 builder.Services.AddScoped<InventoryApiClient>();
+builder.Services.AddScoped<InventoryRealtimeClient>();
 builder.Services.AddScoped<UserRoleProvider>();
 
 await builder.Build().RunAsync();
