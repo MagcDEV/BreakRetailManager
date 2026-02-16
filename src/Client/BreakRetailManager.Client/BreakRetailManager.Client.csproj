@@ -21,6 +21,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Update="wwwroot\appsettings.Development.json" CopyToPublishDirectory="Never" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\Modules\Sales\BreakRetailManager.Sales.Contracts\BreakRetailManager.Sales.Contracts.csproj" />
     <ProjectReference Include="..\..\Modules\UserManagement\BreakRetailManager.UserManagement.Contracts\BreakRetailManager.UserManagement.Contracts.csproj" />
     <ProjectReference Include="..\..\Modules\Inventory\BreakRetailManager.Inventory.Contracts\BreakRetailManager.Inventory.Contracts.csproj" />
