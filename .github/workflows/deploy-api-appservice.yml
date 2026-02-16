@@ -1,0 +1,45 @@
+name: Deploy API to App Service
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "src/Api/**"
+      - "src/Modules/**"
+      - "src/BuildingBlocks/**"
+      - "BreakRetailManager.slnx"
+      - ".github/workflows/deploy-api-appservice.yml"
+  workflow_dispatch:
+
+env:
+  AZURE_WEBAPP_NAME: breakretailmanager-api-50927
+  PROJECT_PATH: src/Api/BreakRetailManager.Api/BreakRetailManager.Api.csproj
+  PUBLISH_PATH: ${{ github.workspace }}/publish/api
+  DOTNET_VERSION: 10.0.x
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore ${{ env.PROJECT_PATH }} --nologo
+
+      - name: Publish
+        run: dotnet publish ${{ env.PROJECT_PATH }} -c Release -o ${{ env.PUBLISH_PATH }} --nologo
+
+      - name: Deploy to App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: ${{ env.PUBLISH_PATH }}
