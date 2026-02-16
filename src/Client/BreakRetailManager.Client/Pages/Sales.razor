@@ -11,6 +11,15 @@
 
 <h1>Point of Sale</h1>
 
+@if (selectedLocationId != Guid.Empty)
+{
+    <div class="sales-location-banner mb-3" role="status" aria-live="polite">
+        <span class="sales-location-banner-label">Current Location</span>
+        <span class="sales-location-banner-name">@selectedLocationName</span>
+        <span class="sales-location-banner-status badge @(IsOnline ? "bg-success" : "bg-warning text-dark")">@(IsOnline ? "Online" : "Offline")</span>
+    </div>
+}
+
 @if (selectedLocationId == Guid.Empty)
 {
     <div class="card mx-auto" style="max-width: 500px;">

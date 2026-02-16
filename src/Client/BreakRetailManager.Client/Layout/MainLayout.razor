@@ -1,4 +1,5 @@
 ﻿@inherits LayoutComponentBase
+@using System.Security.Claims
 @inject UserRoleProvider RoleProvider
 
 <div class="page">
@@ -8,6 +9,23 @@
 
     <main>
         <div class="top-row px-4">
+            <AuthorizeView>
+                <Authorized Context="authContext">
+                    <div class="user-indicator" title="Signed in user">
+                        <span class="user-indicator-label">Signed in as</span>
+                        <span class="user-indicator-name">@GetDisplayName(authContext.User)</span>
+                        @if (RoleProvider.Roles.Count > 0)
+                        {
+                            <span class="user-indicator-roles">@string.Join(", ", RoleProvider.Roles)</span>
+                        }
+                    </div>
+                </Authorized>
+                <NotAuthorized>
+                    <div class="user-indicator user-indicator-anonymous" title="No active session">
+                        <span class="user-indicator-label">Not signed in</span>
+                    </div>
+                </NotAuthorized>
+            </AuthorizeView>
             <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
         </div>
 
@@ -22,5 +40,21 @@
     {
         RoleProvider.RolesChanged += StateHasChanged;
         await RoleProvider.InitializeAsync();
+    }
+
+    private static string GetDisplayName(ClaimsPrincipal user)
+    {
+        var displayName = user.FindFirst("name")?.Value
+            ?? user.FindFirst(ClaimTypes.Name)?.Value
+            ?? user.FindFirst("preferred_username")?.Value
+            ?? user.FindFirst(ClaimTypes.Email)?.Value
+            ?? user.Identity?.Name;
+
+        return string.IsNullOrWhiteSpace(displayName) ? "User" : displayName;
+    }
+
+    public void Dispose()
+    {
+        RoleProvider.RolesChanged -= StateHasChanged;
     }
 }

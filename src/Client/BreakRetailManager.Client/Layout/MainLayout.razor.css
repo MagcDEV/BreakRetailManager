@@ -6,29 +6,79 @@
 
 main {
     flex: 1;
+    background-color: #faf8f5;
 }
 
 .sidebar {
-    background-image: linear-gradient(180deg, rgb(5, 39, 103) 0%, #3a0647 70%);
+    background-color: #111111;
 }
 
 .top-row {
-    background-color: #f7f7f7;
-    border-bottom: 1px solid #d6d5d5;
+    background-color: #ffffff;
+    border-bottom: 1px solid #e8e4df;
     justify-content: flex-end;
+    gap: 0.75rem;
     height: 3.5rem;
     display: flex;
     align-items: center;
+}
+
+.user-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-height: 2rem;
+    padding: 0.2rem 0.7rem;
+    border: 1px solid #e8e4df;
+    border-radius: 999px;
+    background-color: #faf8f5;
+    color: #2d2d2d;
+}
+
+.user-indicator-label {
+    color: #6b6b6b;
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+}
+
+.user-indicator-name {
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: #1a1a1a;
+    white-space: nowrap;
+}
+
+.user-indicator-roles {
+    font-size: 0.72rem;
+    color: #ffffff;
+    background-color: #1a1a1a;
+    border: 1px solid #c9a96e;
+    border-radius: 999px;
+    padding: 0.05rem 0.5rem;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+.user-indicator-anonymous {
+    background-color: #f4f1eb;
 }
 
     .top-row ::deep a, .top-row ::deep .btn-link {
         white-space: nowrap;
         margin-left: 1.5rem;
         text-decoration: none;
+        color: #6b6b6b;
+        font-weight: 500;
+        font-size: 0.875rem;
+        letter-spacing: 0.02em;
+        transition: color 0.2s ease;
     }
 
     .top-row ::deep a:hover, .top-row ::deep .btn-link:hover {
-        text-decoration: underline;
+        text-decoration: none;
+        color: #c9a96e;
     }
 
     .top-row ::deep a:first-child {
@@ -39,6 +89,17 @@ main {
 @media (max-width: 640.98px) {
     .top-row {
         justify-content: space-between;
+    }
+
+    .user-indicator {
+        max-width: 58vw;
+        overflow: hidden;
+    }
+
+    .user-indicator-name,
+    .user-indicator-roles {
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .top-row ::deep a, .top-row ::deep .btn-link {
@@ -52,7 +113,7 @@ main {
     }
 
     .sidebar {
-        width: 250px;
+        width: 260px;
         height: 100vh;
         position: sticky;
         top: 0;
