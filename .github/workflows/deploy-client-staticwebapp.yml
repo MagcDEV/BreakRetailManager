@@ -35,6 +35,9 @@ jobs:
       - name: Copy Static Web Apps config
         run: cp src/Client/BreakRetailManager.Client/staticwebapp.config.json ${{ env.PUBLISH_WWWROOT_PATH }}/staticwebapp.config.json
 
+      - name: Write production fallback config
+        run: cp ${{ env.PUBLISH_WWWROOT_PATH }}/appsettings.json ${{ env.PUBLISH_WWWROOT_PATH }}/appsettings.Development.json
+
       - name: Build And Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
