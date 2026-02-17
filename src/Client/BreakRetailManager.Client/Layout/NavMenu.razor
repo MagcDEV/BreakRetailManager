@@ -1,5 +1,4 @@
 @inject NavigationManager Navigation
-@inject SignOutSessionStateManager SignOutSessionStateManager
 @inject UserRoleProvider RoleProvider
 @implements IDisposable
 
@@ -98,10 +97,9 @@
         collapseNavMenu = !collapseNavMenu;
     }
 
-    private async Task BeginLogout()
+    private void BeginLogout()
     {
-        await SignOutSessionStateManager.SetSignOutState();
-        Navigation.NavigateTo("authentication/logout");
+        Navigation.NavigateToLogout("authentication/logout");
     }
 
     private void HandleRolesChanged()
