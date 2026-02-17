@@ -22,6 +22,8 @@ public sealed class SalesDbContext : DbContext
             order.HasKey(entity => entity.Id);
             order.Property(entity => entity.Number).HasMaxLength(32).IsRequired();
             order.Property(entity => entity.CreatedAt).IsRequired();
+            order.Property(entity => entity.CreatedByObjectId).HasMaxLength(128);
+            order.Property(entity => entity.CreatedByDisplayName).HasMaxLength(256);
             order.Property(entity => entity.PaymentMethod).IsRequired();
             order.Property(entity => entity.LocationId).IsRequired();
             order.Property(entity => entity.DiscountTotal).HasColumnType("decimal(18,2)").IsRequired();

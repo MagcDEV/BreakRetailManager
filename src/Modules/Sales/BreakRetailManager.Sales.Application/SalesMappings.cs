@@ -25,7 +25,9 @@ public static class SalesMappings
             order.InvoiceNumber,
             order.PointOfSale,
             order.Subtotal,
-            order.DiscountTotal);
+            order.DiscountTotal,
+            order.CreatedByObjectId,
+            order.CreatedByDisplayName);
     }
 
     public static SalesOrder FromRequest(CreateSalesOrderRequest request)

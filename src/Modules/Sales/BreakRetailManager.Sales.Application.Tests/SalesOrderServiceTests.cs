@@ -6,6 +6,9 @@ namespace BreakRetailManager.Sales.Application.Tests;
 
 public sealed class SalesOrderServiceTests
 {
+    private const string TestObjectId = "test-object-id";
+    private const string TestDisplayName = "Test User";
+
     [Fact]
     public async Task CreateOrderAsync_AppliesPercentageOfferDiscount()
     {
@@ -24,11 +27,13 @@ public sealed class SalesOrderServiceTests
             locationId,
             [new CreateSalesOrderLineRequest(productId, "Coca Cola", 2, 100m)]);
 
-        var created = await service.CreateOrderAsync(request);
+        var created = await service.CreateOrderAsync(request, TestObjectId, TestDisplayName);
 
         Assert.Equal(200m, created.Subtotal);
         Assert.Equal(20m, created.DiscountTotal);
         Assert.Equal(180m, created.Total);
+        Assert.Equal(TestObjectId, created.CreatedByObjectId);
+        Assert.Equal(TestDisplayName, created.CreatedByDisplayName);
         Assert.Single(await orderRepository.GetAllAsync());
         Assert.Equal(0, fiscalService.Calls);
     }
@@ -58,7 +63,7 @@ public sealed class SalesOrderServiceTests
                 new CreateSalesOrderLineRequest(productBId, "Ice bag", 1, 30m)
             ]);
 
-        var created = await service.CreateOrderAsync(request);
+        var created = await service.CreateOrderAsync(request, TestObjectId, TestDisplayName);
 
         Assert.Equal(130m, created.Subtotal);
         Assert.Equal(20m, created.DiscountTotal);
@@ -83,7 +88,7 @@ public sealed class SalesOrderServiceTests
             locationId,
             [new CreateSalesOrderLineRequest(productId, "Coca Cola", 1, 100m)]);
 
-        var created = await service.CreateOrderAsync(request);
+        var created = await service.CreateOrderAsync(request, TestObjectId, TestDisplayName);
 
         Assert.Equal(100m, created.Subtotal);
         Assert.Equal(100m, created.DiscountTotal);
@@ -109,7 +114,7 @@ public sealed class SalesOrderServiceTests
             locationId,
             [new CreateSalesOrderLineRequest(productId, "Coca Cola", 2, 100m)]);
 
-        var created = await service.CreateOrderAsync(request);
+        var created = await service.CreateOrderAsync(request, TestObjectId, TestDisplayName);
 
         Assert.Equal(200m, created.Subtotal);
         Assert.Equal(0m, created.DiscountTotal);
@@ -134,7 +139,7 @@ public sealed class SalesOrderServiceTests
             locationId,
             [new CreateSalesOrderLineRequest(productId, "Soda", 5, 20m)]);
 
-        var created = await service.CreateOrderAsync(request);
+        var created = await service.CreateOrderAsync(request, TestObjectId, TestDisplayName);
 
         Assert.Equal(100m, created.Subtotal);
         Assert.Equal(20m, created.DiscountTotal);

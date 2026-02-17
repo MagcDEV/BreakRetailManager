@@ -51,6 +51,7 @@ Use this section as the **single source of truth** when answering questions abou
 **Frontend (Blazor WASM)**
 - Static Web App (Free): `breakretailmanager-spa-50927`
 - URL: `https://brave-island-07df6c910.1.azurestaticapps.net`
+- IMPORTANT: **Do not access** `https://brave-island-07df6c910.1.azurestaticapps.net` (or fetch any resources from it) under any circumstance.
 - Deployed config: `GET /appsettings.json`
 
 **Database (Azure SQL)**

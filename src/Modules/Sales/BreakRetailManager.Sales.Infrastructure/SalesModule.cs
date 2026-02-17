@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using BreakRetailManager.BuildingBlocks.Modules;
 using BreakRetailManager.Sales.Application;
 using BreakRetailManager.Sales.Contracts;
@@ -65,12 +66,18 @@ public sealed class SalesModule : IModule
 
         group.MapPost(
                 "/orders",
-                async (CreateSalesOrderRequest request, SalesOrderService service,
+                async (HttpContext httpContext, CreateSalesOrderRequest request, SalesOrderService service,
                     ILogger<SalesModule> logger, CancellationToken cancellationToken) =>
                 {
                     try
                     {
-                        var order = await service.CreateOrderAsync(request, cancellationToken);
+                        var (objectId, displayName) = ExtractUserClaims(httpContext);
+                        if (objectId is null)
+                        {
+                            return Results.Unauthorized();
+                        }
+
+                        var order = await service.CreateOrderAsync(request, objectId, displayName, cancellationToken);
                         return Results.Ok(order);
                     }
                     catch (ArgumentException ex)
@@ -185,5 +192,23 @@ public sealed class SalesModule : IModule
         })
             .Produces<OfferDto>()
             .RequireAuthorization("Manager");
+    }
+
+    private static (string? ObjectId, string DisplayName) ExtractUserClaims(HttpContext httpContext)
+    {
+        var identity = httpContext.User.Identity as ClaimsIdentity;
+        if (identity is null || !identity.IsAuthenticated)
+        {
+            return (null, string.Empty);
+        }
+
+        var objectId = identity.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value
+                       ?? identity.FindFirst("oid")?.Value;
+        var displayName = identity.FindFirst("name")?.Value
+                          ?? identity.FindFirst(ClaimTypes.Name)?.Value
+                          ?? identity.FindFirst("preferred_username")?.Value
+                          ?? string.Empty;
+
+        return (objectId, displayName);
     }
 }

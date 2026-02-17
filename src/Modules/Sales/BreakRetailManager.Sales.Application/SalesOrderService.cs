@@ -23,9 +23,12 @@ public sealed class SalesOrderService
 
     public async Task<SalesOrderDto> CreateOrderAsync(
         CreateSalesOrderRequest request,
+        string createdByObjectId,
+        string createdByDisplayName,
         CancellationToken cancellationToken = default)
     {
         var order = SalesMappings.FromRequest(request);
+        order.SetCreatedBy(createdByObjectId, createdByDisplayName);
         var activeOffers = await _offerRepository.GetActiveAsync(cancellationToken);
         var totalDiscount = OfferDiscountCalculator.CalculateDiscount(order, activeOffers);
         order.SetDiscount(totalDiscount);

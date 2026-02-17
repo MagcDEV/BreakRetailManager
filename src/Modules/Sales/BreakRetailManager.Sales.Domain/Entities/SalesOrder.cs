@@ -26,6 +26,12 @@ public sealed class SalesOrder
 
     public DateTimeOffset CreatedAt { get; private set; }
 
+    /// <summary>Azure AD Object ID (oid claim) of the user who created the sale.</summary>
+    public string? CreatedByObjectId { get; private set; }
+
+    /// <summary>Display name snapshot of the user who created the sale.</summary>
+    public string? CreatedByDisplayName { get; private set; }
+
     public PaymentMethod PaymentMethod { get; private set; }
 
     public Guid LocationId { get; private set; }
@@ -49,6 +55,17 @@ public sealed class SalesOrder
     public decimal Total => Subtotal - DiscountTotal;
 
     public bool RequiresFiscalAuthorization => PaymentMethod == PaymentMethod.Card;
+
+    public void SetCreatedBy(string objectId, string displayName)
+    {
+        if (string.IsNullOrWhiteSpace(objectId))
+        {
+            throw new ArgumentException("User object ID is required.", nameof(objectId));
+        }
+
+        CreatedByObjectId = objectId;
+        CreatedByDisplayName = displayName;
+    }
 
     public void SetPaymentMethod(PaymentMethod paymentMethod)
     {

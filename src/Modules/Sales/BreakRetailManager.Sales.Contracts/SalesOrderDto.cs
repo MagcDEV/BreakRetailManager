@@ -13,4 +13,6 @@ public sealed record SalesOrderDto(
     long InvoiceNumber,
     int PointOfSale,
     decimal Subtotal = 0,
-    decimal DiscountTotal = 0);
+    decimal DiscountTotal = 0,
+    string? CreatedByObjectId = null,
+    string? CreatedByDisplayName = null);
