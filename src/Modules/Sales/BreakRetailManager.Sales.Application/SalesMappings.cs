@@ -1,3 +1,4 @@
+using System.Text;
 using BreakRetailManager.Sales.Contracts;
 using BreakRetailManager.Sales.Domain.Entities;
 using ContractPaymentMethod = BreakRetailManager.Sales.Contracts.PaymentMethod;
@@ -11,15 +12,15 @@ public static class SalesMappings
     {
         return new SalesOrderDto(
             order.Id,
-            order.Number,
+            RepairText(order.Number),
             order.CreatedAt,
             order.Total,
             order.Lines
-                .Select(line => new SalesOrderLineDto(line.Id, line.ProductId, line.ProductName, line.Quantity, line.UnitPrice))
+                .Select(line => new SalesOrderLineDto(line.Id, line.ProductId, RepairText(line.ProductName), line.Quantity, line.UnitPrice))
                 .ToList(),
             ToContractPaymentMethod(order.PaymentMethod),
             order.LocationId,
-            order.Cae,
+            order.Cae is null ? null : RepairText(order.Cae),
             order.CaeExpirationDate,
             order.InvoiceNumber,
             order.PointOfSale,
@@ -43,10 +44,29 @@ public static class SalesMappings
 
         foreach (var line in request.Lines)
         {
-            order.AddLine(line.ProductId, line.ProductName, line.Quantity, line.UnitPrice);
+            order.AddLine(line.ProductId, RepairText(line.ProductName), line.Quantity, line.UnitPrice);
         }
 
         return order;
+    }
+
+    private static string RepairText(string value)
+    {
+        if (string.IsNullOrEmpty(value) || (!value.Contains('Ã') && !value.Contains('Â')))
+        {
+            return value;
+        }
+
+        for (var i = 0; i < value.Length; i++)
+        {
+            if (value[i] > 0xFF)
+            {
+                return value;
+            }
+        }
+
+        var repaired = Encoding.UTF8.GetString(Encoding.Latin1.GetBytes(value));
+        return repaired.Contains('\uFFFD') ? value : repaired;
     }
 
     private static ContractPaymentMethod ToContractPaymentMethod(DomainPaymentMethod paymentMethod)

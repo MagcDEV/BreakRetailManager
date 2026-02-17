@@ -1,3 +1,4 @@
+using System.Text;
 using BreakRetailManager.Inventory.Contracts;
 using BreakRetailManager.Inventory.Domain.Entities;
 
@@ -8,35 +9,35 @@ public static class InventoryMappings
     public static ProductDto ToDto(Product product) =>
         new(
             product.Id,
-            product.Barcode,
-            product.Name,
-            product.Description,
-            product.Category,
+            RepairText(product.Barcode),
+            RepairText(product.Name),
+            RepairText(product.Description),
+            RepairText(product.Category),
             product.CostPrice,
             product.SalePrice,
             product.StockQuantity,
             product.ReorderLevel,
             product.IsLowStock,
             product.ProviderId,
-            product.Provider?.Name ?? string.Empty,
+            RepairText(product.Provider?.Name ?? string.Empty),
             product.CreatedAt,
             product.UpdatedAt);
 
     public static ProviderDto ToDto(Provider provider) =>
         new(
             provider.Id,
-            provider.Name,
-            provider.ContactName,
-            provider.Phone,
-            provider.Email,
-            provider.Address,
+            RepairText(provider.Name),
+            RepairText(provider.ContactName),
+            RepairText(provider.Phone),
+            RepairText(provider.Email),
+            RepairText(provider.Address),
             provider.CreatedAt);
 
     public static LocationDto ToDto(Location location) =>
         new(
             location.Id,
-            location.Name,
-            location.Address,
+            RepairText(location.Name),
+            RepairText(location.Address),
             location.IsActive,
             location.CreatedAt);
 
@@ -44,9 +45,9 @@ public static class InventoryMappings
         new(
             stock.Id,
             stock.LocationId,
-            stock.Location?.Name ?? string.Empty,
+            RepairText(stock.Location?.Name ?? string.Empty),
             stock.ProductId,
-            stock.Product?.Name ?? string.Empty,
+            RepairText(stock.Product?.Name ?? string.Empty),
             stock.Quantity,
             stock.ReorderLevel,
             stock.IsLowStock);
@@ -70,4 +71,23 @@ public static class InventoryMappings
             request.Phone,
             request.Email,
             request.Address);
+
+    private static string RepairText(string value)
+    {
+        if (string.IsNullOrEmpty(value) || (!value.Contains('Ã') && !value.Contains('Â')))
+        {
+            return value;
+        }
+
+        for (var i = 0; i < value.Length; i++)
+        {
+            if (value[i] > 0xFF)
+            {
+                return value;
+            }
+        }
+
+        var repaired = Encoding.UTF8.GetString(Encoding.Latin1.GetBytes(value));
+        return repaired.Contains('\uFFFD') ? value : repaired;
+    }
 }
