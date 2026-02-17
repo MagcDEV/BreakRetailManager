@@ -38,6 +38,10 @@ dotnet test BreakRetailManager.slnx --nologo
 - The Sales page can sync queued orders once the client is online again.
 
 ## Azure deployment
+### Deployed URLs
+- API: https://breakretailmanager-api-50927.azurewebsites.net (health: `/health`)
+- SPA: https://brave-island-07df6c910.1.azurestaticapps.net
+
 ### API (Azure App Service)
 - Publish `src/Api/BreakRetailManager.Api`.
 - Configure connection string `DefaultConnection` (Azure SQL).

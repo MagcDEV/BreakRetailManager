@@ -9,6 +9,7 @@ namespace BreakRetailManager.Client.Services;
 public sealed class InventoryRealtimeClient : IAsyncDisposable
 {
     private readonly NavigationManager _navigationManager;
+    private readonly Uri _apiBaseUri;
     private readonly IAccessTokenProvider _tokenProvider;
     private readonly ILogger<InventoryRealtimeClient> _logger;
 
@@ -16,10 +17,12 @@ public sealed class InventoryRealtimeClient : IAsyncDisposable
 
     public InventoryRealtimeClient(
         NavigationManager navigationManager,
+        HttpClient httpClient,
         IAccessTokenProvider tokenProvider,
         ILogger<InventoryRealtimeClient> logger)
     {
         _navigationManager = navigationManager;
+        _apiBaseUri = httpClient.BaseAddress ?? _navigationManager.ToAbsoluteUri("/");
         _tokenProvider = tokenProvider;
         _logger = logger;
     }
@@ -33,7 +36,8 @@ public sealed class InventoryRealtimeClient : IAsyncDisposable
             return;
         }
 
-        var hubUrl = _navigationManager.ToAbsoluteUri("/hubs/inventory");
+        // The hub is hosted by the API (not the Static Web App origin).
+        var hubUrl = new Uri(_apiBaseUri, "/hubs/inventory");
 
         _connection = new HubConnectionBuilder()
             .WithUrl(hubUrl, options =>
