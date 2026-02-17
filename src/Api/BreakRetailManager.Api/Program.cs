@@ -60,9 +60,9 @@ if (app.Environment.IsDevelopment())
 
     var inventoryDb = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
     await inventoryDb.Database.MigrateAsync();
-
-    await UserManagementModule.SeedAsync(app.Services);
 }
+
+await UserManagementModule.SeedAsync(app.Services);
 
 app.UseHttpsRedirection();
 app.UseCors("Client");
