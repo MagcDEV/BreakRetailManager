@@ -43,5 +43,6 @@ builder.Services.AddScoped<UserApiClient>();
 builder.Services.AddScoped<InventoryApiClient>();
 builder.Services.AddScoped<InventoryRealtimeClient>();
 builder.Services.AddScoped<UserRoleProvider>();
+builder.Services.AddScoped<CurrentLocationProvider>();
 
 await builder.Build().RunAsync();

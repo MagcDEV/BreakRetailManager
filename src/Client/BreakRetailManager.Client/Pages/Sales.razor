@@ -1,11 +1,13 @@
 @page "/sales"
 @using BreakRetailManager.Sales.Contracts
 @using BreakRetailManager.Inventory.Contracts
-@attribute [Authorize]
+@attribute [Authorize(Roles = "Admin,Manager,Cashier")]
+@implements IDisposable
 @inject SalesApiClient SalesApi
 @inject InventoryApiClient InventoryApi
 @inject ConnectivityService Connectivity
 @inject IndexedDbSalesStore Store
+@inject CurrentLocationProvider CurrentLocation
 
 <PageTitle>Point of Sale</PageTitle>
 
@@ -29,7 +31,7 @@
         <div class="card-body">
             @if (locations.Count == 0)
             {
-                <p class="text-muted">Loading locations...</p>
+                <p class="text-muted">@(IsOnline ? "Loading locations..." : "You're offline. Connect to select a location.")</p>
             }
             else
             {
@@ -37,7 +39,7 @@
                 <div class="d-grid gap-2">
                     @foreach (var loc in locations)
                     {
-                        <button class="btn btn-outline-primary btn-lg" @onclick="() => SelectLocation(loc.Id)">
+                        <button class="btn btn-outline-primary btn-lg" @onclick="() => SelectLocationAsync(loc)">
                             📍 @loc.Name
                             @if (!string.IsNullOrWhiteSpace(loc.Address))
                             {
@@ -322,11 +324,19 @@
 
     protected override async Task OnInitializedAsync()
     {
+        CurrentLocation.LocationChanged += HandleLocationChanged;
+        await CurrentLocation.InitializeAsync();
+        selectedLocationId = CurrentLocation.LocationId;
+        selectedLocationName = CurrentLocation.LocationName;
+
         IsOnline = await Connectivity.IsOnlineAsync();
         if (IsOnline)
         {
             await SalesApi.SyncOutboxAsync();
-            locations.AddRange(await InventoryApi.GetLocationsAsync());
+            locations.AddRange(
+                (await InventoryApi.GetLocationsAsync())
+                    .Where(l => l.IsActive)
+                    .OrderBy(l => l.Name, StringComparer.OrdinalIgnoreCase));
             activeOffers.AddRange(await SalesApi.GetActiveOffersAsync());
         }
 
@@ -334,10 +344,32 @@
         outboxCount = (await Store.GetOutboxAsync()).Count;
     }
 
-    private void SelectLocation(Guid locationId)
+    private async Task SelectLocationAsync(LocationDto location)
     {
-        selectedLocationId = locationId;
-        selectedLocationName = locations.FirstOrDefault(l => l.Id == locationId)?.Name ?? "Unknown";
+        await CurrentLocation.SetLocationAsync(location.Id, location.Name);
+    }
+
+    private void HandleLocationChanged()
+    {
+        _ = InvokeAsync(() =>
+        {
+            if (selectedLocationId != Guid.Empty
+                && CurrentLocation.LocationId != Guid.Empty
+                && CurrentLocation.LocationId != selectedLocationId
+                && currentOrderLines.Count > 0)
+            {
+                currentOrderLines.Clear();
+                RecalculateOfferPreview();
+                statusMessage = $"Location changed to '{CurrentLocation.LocationName}'. Current sale cleared.";
+                statusCss = "alert-warning";
+                scanError = null;
+            }
+
+            selectedLocationId = CurrentLocation.LocationId;
+            selectedLocationName = CurrentLocation.LocationName;
+
+            StateHasChanged();
+        });
     }
 
     private async Task OnBarcodeKeyDown(KeyboardEventArgs e)
@@ -399,6 +431,11 @@
         isSearching = false;
     }
 
+    public void Dispose()
+    {
+        CurrentLocation.LocationChanged -= HandleLocationChanged;
+    }
+
     private void ChangeQuantity(OrderLineModel line, int delta)
     {
         var newQty = line.Quantity + delta;
@@ -454,7 +491,7 @@
         // Decrement stock at the sale location for each sold product
         foreach (var line in currentOrderLines)
         {
-            await InventoryApi.UpdateLocationStockAsync(selectedLocationId, line.ProductId, -line.Quantity);
+            await InventoryApi.UpdateLocationStockForSaleAsync(selectedLocationId, line.ProductId, -line.Quantity);
         }
 
         var isOffline = created.Number.StartsWith("OFFLINE-", StringComparison.OrdinalIgnoreCase);

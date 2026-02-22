@@ -175,4 +175,25 @@ public sealed class InventoryApiClient
             return null;
         }
     }
+
+    public async Task<LocationStockDto?> UpdateLocationStockForSaleAsync(Guid locationId, Guid productId, int quantity, CancellationToken cancellationToken = default)
+    {
+        if (quantity >= 0)
+        {
+            _logger.LogWarning("Sale stock adjustment must be negative; got {Quantity} for {LocationId}/{ProductId}.", quantity, locationId, productId);
+            return null;
+        }
+
+        try
+        {
+            var response = await _httpClient.PatchAsJsonAsync($"{LocationsEndpoint}/{locationId}/stock/{productId}/sale", new { Quantity = quantity }, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<LocationStockDto>(cancellationToken: cancellationToken);
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogWarning(ex, "Failed to update location stock for sale {LocationId}/{ProductId}.", locationId, productId);
+            return null;
+        }
+    }
 }

@@ -50,7 +50,8 @@ else
                     <td>
                         <div class="d-flex gap-1 align-items-center">
                             <select class="form-select form-select-sm" style="width: 140px;"
-                                    @bind="selectedRole">
+                                    value="@GetSelectedAssignRole(user.Id)"
+                                    @onchange="(ChangeEventArgs e) => SetSelectedAssignRole(user.Id, e)">
                                 <option value="">Select role…</option>
                                 @foreach (var role in availableRoles)
                                 {
@@ -58,14 +59,15 @@ else
                                 }
                             </select>
                             <button class="btn btn-sm btn-success"
-                                    disabled="@(string.IsNullOrEmpty(selectedRole))"
+                                    disabled="@(string.IsNullOrEmpty(GetSelectedAssignRole(user.Id)))"
                                     @onclick="() => AssignRoleAsync(user)">
                                 Assign
                             </button>
                             @if (user.Roles.Count > 0)
                             {
                                 <select class="form-select form-select-sm" style="width: 140px;"
-                                        @bind="selectedRevokeRole">
+                                        value="@GetSelectedRevokeRole(user.Id)"
+                                        @onchange="(ChangeEventArgs e) => SetSelectedRevokeRole(user.Id, e)">
                                     <option value="">Revoke…</option>
                                     @foreach (var role in user.Roles)
                                     {
@@ -73,7 +75,7 @@ else
                                     }
                                 </select>
                                 <button class="btn btn-sm btn-danger"
-                                        disabled="@(string.IsNullOrEmpty(selectedRevokeRole))"
+                                        disabled="@(string.IsNullOrEmpty(GetSelectedRevokeRole(user.Id)))"
                                         @onclick="() => RevokeRoleAsync(user)">
                                     Revoke
                                 </button>
@@ -92,8 +94,9 @@ else
     private bool isLoading = true;
     private string? statusMessage;
     private string statusCss = "alert-info";
-    private string selectedRole = string.Empty;
-    private string selectedRevokeRole = string.Empty;
+
+    private readonly Dictionary<Guid, string> selectedAssignRoleByUserId = new();
+    private readonly Dictionary<Guid, string> selectedRevokeRoleByUserId = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -110,6 +113,7 @@ else
 
     private async Task AssignRoleAsync(UserDto user)
     {
+        var selectedRole = GetSelectedAssignRole(user.Id);
         if (string.IsNullOrEmpty(selectedRole)) return;
 
         var result = await UserApi.AssignRoleAsync(user.Id, selectedRole);
@@ -117,7 +121,7 @@ else
         {
             statusMessage = $"Assigned '{selectedRole}' to {user.DisplayName}.";
             statusCss = "alert-success";
-            selectedRole = string.Empty;
+            selectedAssignRoleByUserId[user.Id] = string.Empty;
             await LoadDataAsync();
         }
         else
@@ -129,6 +133,7 @@ else
 
     private async Task RevokeRoleAsync(UserDto user)
     {
+        var selectedRevokeRole = GetSelectedRevokeRole(user.Id);
         if (string.IsNullOrEmpty(selectedRevokeRole)) return;
 
         var result = await UserApi.RevokeRoleAsync(user.Id, selectedRevokeRole);
@@ -136,7 +141,7 @@ else
         {
             statusMessage = $"Revoked '{selectedRevokeRole}' from {user.DisplayName}.";
             statusCss = "alert-success";
-            selectedRevokeRole = string.Empty;
+            selectedRevokeRoleByUserId[user.Id] = string.Empty;
             await LoadDataAsync();
         }
         else
@@ -145,4 +150,16 @@ else
             statusCss = "alert-danger";
         }
     }
+
+    private string GetSelectedAssignRole(Guid userId)
+        => selectedAssignRoleByUserId.TryGetValue(userId, out var role) ? role : string.Empty;
+
+    private void SetSelectedAssignRole(Guid userId, ChangeEventArgs e)
+        => selectedAssignRoleByUserId[userId] = e.Value?.ToString() ?? string.Empty;
+
+    private string GetSelectedRevokeRole(Guid userId)
+        => selectedRevokeRoleByUserId.TryGetValue(userId, out var role) ? role : string.Empty;
+
+    private void SetSelectedRevokeRole(Guid userId, ChangeEventArgs e)
+        => selectedRevokeRoleByUserId[userId] = e.Value?.ToString() ?? string.Empty;
 }

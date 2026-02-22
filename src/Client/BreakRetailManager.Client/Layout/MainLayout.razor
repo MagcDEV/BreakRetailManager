@@ -1,6 +1,10 @@
 ﻿@inherits LayoutComponentBase
+@implements IDisposable
 @using System.Security.Claims
+@using BreakRetailManager.Inventory.Contracts
 @inject UserRoleProvider RoleProvider
+@inject CurrentLocationProvider CurrentLocation
+@inject InventoryApiClient InventoryApi
 
 <div class="page">
     <div class="sidebar">
@@ -11,12 +15,48 @@
         <div class="top-row px-4">
             <AuthorizeView>
                 <Authorized Context="authContext">
-                    <div class="user-indicator" title="Signed in user">
-                        <span class="user-indicator-label">Signed in as</span>
-                        <span class="user-indicator-name">@GetDisplayName(authContext.User)</span>
-                        @if (RoleProvider.Roles.Count > 0)
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <div class="user-indicator" title="Signed in user">
+                            <span class="user-indicator-label">Signed in as</span>
+                            <span class="user-indicator-name">@GetDisplayName(authContext.User)</span>
+                            @if (RoleProvider.Roles.Count > 0)
+                            {
+                                <span class="user-indicator-roles">@string.Join(", ", RoleProvider.Roles)</span>
+                            }
+                        </div>
+
+                        @if (CanSelectLocation)
                         {
-                            <span class="user-indicator-roles">@string.Join(", ", RoleProvider.Roles)</span>
+                            <div class="user-indicator" title="Current location">
+                                <span class="user-indicator-label">Location</span>
+                                <select class="location-select"
+                                        aria-label="Current location"
+                                        value="@(CurrentLocation.HasLocation ? CurrentLocation.LocationId.ToString() : string.Empty)"
+                                        @onchange="OnLocationSelectChanged"
+                                        disabled="@(!CanChangeLocation)">
+                                    @if (CurrentLocation.HasLocation && !locations.Any(l => l.Id == CurrentLocation.LocationId))
+                                    {
+                                        <option value="@CurrentLocation.LocationId">@CurrentLocation.LocationName</option>
+                                    }
+
+                                    @if (isLoadingLocations)
+                                    {
+                                        <option value="">Loading locations...</option>
+                                    }
+                                    else if (locations.Count == 0)
+                                    {
+                                        <option value="">No locations available</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="">Select location...</option>
+                                        @foreach (var loc in locations)
+                                        {
+                                            <option value="@loc.Id">@loc.Name</option>
+                                        }
+                                    }
+                                </select>
+                            </div>
                         }
                     </div>
                 </Authorized>
@@ -38,8 +78,100 @@
 @code {
     protected override async Task OnInitializedAsync()
     {
-        RoleProvider.RolesChanged += StateHasChanged;
+        RoleProvider.RolesChanged += HandleRolesChanged;
+        CurrentLocation.LocationChanged += HandleLocationChanged;
         await RoleProvider.InitializeAsync();
+        await CurrentLocation.InitializeAsync();
+        _ = EnsureLocationsLoadedAsync();
+    }
+
+    private readonly List<LocationDto> locations = new();
+    private bool isLoadingLocations;
+
+    private bool CanSelectLocation =>
+        RoleProvider.Roles.Contains("Admin", StringComparer.OrdinalIgnoreCase)
+        || RoleProvider.Roles.Contains("Manager", StringComparer.OrdinalIgnoreCase)
+        || RoleProvider.Roles.Contains("Cashier", StringComparer.OrdinalIgnoreCase);
+
+    private bool CanChangeLocation => CanSelectLocation && !isLoadingLocations && locations.Count > 0;
+
+    private async Task EnsureLocationsLoadedAsync()
+    {
+        if (!CanSelectLocation || isLoadingLocations)
+        {
+            return;
+        }
+
+        isLoadingLocations = true;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            var fetched = await InventoryApi.GetLocationsAsync();
+            locations.Clear();
+            locations.AddRange(
+                fetched
+                    .Where(l => l.IsActive)
+                    .OrderBy(l => l.Name, StringComparer.OrdinalIgnoreCase));
+
+            if (CurrentLocation.HasLocation)
+            {
+                var match = locations.FirstOrDefault(l => l.Id == CurrentLocation.LocationId);
+                if (match is not null && !match.Name.Equals(CurrentLocation.LocationName, StringComparison.Ordinal))
+                {
+                    await CurrentLocation.SetLocationAsync(match.Id, match.Name);
+                }
+            }
+        }
+        finally
+        {
+            isLoadingLocations = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void HandleRolesChanged()
+    {
+        _ = InvokeAsync(async () =>
+        {
+            if (!CanSelectLocation)
+            {
+                locations.Clear();
+            }
+            else if (locations.Count == 0)
+            {
+                await EnsureLocationsLoadedAsync();
+            }
+
+            StateHasChanged();
+        });
+    }
+
+    private void HandleLocationChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnLocationSelectChanged(ChangeEventArgs e)
+    {
+        var raw = e.Value?.ToString();
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            await CurrentLocation.ClearAsync();
+            return;
+        }
+
+        if (!Guid.TryParse(raw, out var locationId))
+        {
+            return;
+        }
+
+        var name = locations.FirstOrDefault(l => l.Id == locationId)?.Name;
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+
+        await CurrentLocation.SetLocationAsync(locationId, name);
     }
 
     private static string GetDisplayName(ClaimsPrincipal user)
@@ -55,6 +187,7 @@
 
     public void Dispose()
     {
-        RoleProvider.RolesChanged -= StateHasChanged;
+        RoleProvider.RolesChanged -= HandleRolesChanged;
+        CurrentLocation.LocationChanged -= HandleLocationChanged;
     }
 }

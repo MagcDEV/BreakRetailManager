@@ -23,11 +23,14 @@
         </div>
         <AuthorizeView>
             <Authorized>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="sales">
-                        <span class="bi bi-bag-check-fill-nav-menu" aria-hidden="true"></span> Sales
-                    </NavLink>
-                </div>
+                @if (IsCashierOrAbove)
+                {
+                    <div class="nav-item px-3">
+                        <NavLink class="nav-link" href="sales">
+                            <span class="bi bi-bag-check-fill-nav-menu" aria-hidden="true"></span> Sales
+                        </NavLink>
+                    </div>
+                }
             </Authorized>
         </AuthorizeView>
         <AuthorizeView>
@@ -83,6 +86,7 @@
 
     private bool IsAdmin => RoleProvider.Roles.Contains("Admin", StringComparer.OrdinalIgnoreCase);
     private bool IsManagerOrAdmin => IsAdmin || RoleProvider.Roles.Contains("Manager", StringComparer.OrdinalIgnoreCase);
+    private bool IsCashierOrAbove => IsManagerOrAdmin || RoleProvider.Roles.Contains("Cashier", StringComparer.OrdinalIgnoreCase);
 
     protected override async Task OnInitializedAsync()
     {

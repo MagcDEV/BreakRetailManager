@@ -122,6 +122,50 @@ public sealed class InventoryModule : IModule
             .Produces<IReadOnlyList<LocationStockDto>>()
             .RequireAuthorization("Cashier");
 
+        // Sale-driven stock decrements — Cashier and above (negative deltas only)
+        group.MapPatch("/locations/{locationId:guid}/stock/{productId:guid}/sale", async (
+            Guid locationId,
+            Guid productId,
+            StockUpdateRequest request,
+            ProductService service,
+            IHubContext<InventoryHub> hubContext,
+            CancellationToken cancellationToken) =>
+        {
+            if (request.Quantity >= 0)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["quantity"] = new[] { "Sale stock adjustments must be a negative value." }
+                });
+            }
+
+            try
+            {
+                var stock = await service.UpdateLocationStockAsync(locationId, productId, request.Quantity, cancellationToken);
+                if (stock is null)
+                {
+                    return Results.NotFound();
+                }
+
+                await hubContext.Clients.All.SendAsync(
+                    InventoryHub.StockChangedMethod,
+                    new InventoryStockChangedEvent(stock.ProductId, stock.LocationId, stock.Quantity, DateTimeOffset.UtcNow),
+                    cancellationToken);
+
+                return Results.Ok(stock);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["quantity"] = new[] { ex.Message }
+                });
+            }
+        })
+        .Produces<LocationStockDto>()
+        .ProducesValidationProblem(400)
+        .RequireAuthorization("Cashier");
+
         managerGroup.MapPatch("/locations/{locationId:guid}/stock/{productId:guid}", async (
             Guid locationId,
             Guid productId,
