@@ -15,6 +15,12 @@ var apiScopes = builder.Configuration.GetSection("Api:Scopes").Get<string[]>() ?
 builder.Services.AddMsalAuthentication(options =>
 {
     builder.Configuration.Bind("AzureAd", options.ProviderOptions.Authentication);
+
+    // Popup mode can be blocked (or fail to complete) in some browsers/environments.
+    // Redirect mode is more reliable for guest/external users.
+    options.ProviderOptions.LoginMode = "redirect";
+    options.ProviderOptions.Cache.StoreAuthStateInCookie = true;
+
     foreach (var scope in apiScopes)
     {
         options.ProviderOptions.DefaultAccessTokenScopes.Add(scope);
