@@ -39,6 +39,8 @@ public sealed class LocationStock
 
     public int ReorderLevel { get; private set; }
 
+    public byte[] RowVersion { get; private set; } = [];
+
     public bool IsLowStock => Quantity <= ReorderLevel;
 
     public void UpdateQuantity(int delta)

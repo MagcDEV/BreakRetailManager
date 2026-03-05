@@ -1,4 +1,3 @@
-using System.Text;
 using BreakRetailManager.Sales.Contracts;
 using BreakRetailManager.Sales.Domain.Entities;
 using ContractOfferDiscountType = BreakRetailManager.Sales.Contracts.OfferDiscountType;
@@ -12,8 +11,8 @@ public static class OfferMappings
     {
         return new OfferDto(
             offer.Id,
-            RepairText(offer.Name),
-            RepairText(offer.Description),
+            offer.Name,
+            offer.Description,
             ToContractDiscountType(offer.DiscountType),
             offer.DiscountValue,
             offer.IsActive,
@@ -27,8 +26,8 @@ public static class OfferMappings
     public static Offer FromCreateRequest(CreateOfferRequest request)
     {
         return new Offer(
-            RepairText(request.Name),
-            RepairText(request.Description),
+            request.Name,
+            request.Description,
             ToDomainDiscountType(request.DiscountType),
             request.DiscountValue,
             ToDomainRequirements(request.Requirements));
@@ -37,30 +36,11 @@ public static class OfferMappings
     public static void ApplyUpdate(Offer offer, UpdateOfferRequest request)
     {
         offer.Update(
-            RepairText(request.Name),
-            RepairText(request.Description),
+            request.Name,
+            request.Description,
             ToDomainDiscountType(request.DiscountType),
             request.DiscountValue,
             ToDomainRequirements(request.Requirements));
-    }
-
-    private static string RepairText(string value)
-    {
-        if (string.IsNullOrEmpty(value) || (!value.Contains('Ã') && !value.Contains('Â')))
-        {
-            return value;
-        }
-
-        for (var i = 0; i < value.Length; i++)
-        {
-            if (value[i] > 0xFF)
-            {
-                return value;
-            }
-        }
-
-        var repaired = Encoding.UTF8.GetString(Encoding.Latin1.GetBytes(value));
-        return repaired.Contains('\uFFFD') ? value : repaired;
     }
 
     private static IReadOnlyList<OfferRequirement> ToDomainRequirements(IReadOnlyList<OfferRequirementRequest> requirements)

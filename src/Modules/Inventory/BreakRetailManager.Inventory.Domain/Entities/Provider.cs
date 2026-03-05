@@ -20,6 +20,7 @@ public sealed class Provider
         Email = email;
         Address = address;
         CreatedAt = DateTimeOffset.UtcNow;
+        UpdatedAt = DateTimeOffset.UtcNow;
     }
 
     public Guid Id { get; private set; }
@@ -36,6 +37,8 @@ public sealed class Provider
 
     public DateTimeOffset CreatedAt { get; private set; }
 
+    public DateTimeOffset UpdatedAt { get; private set; }
+
     public void Update(string name, string contactName, string phone, string email, string address)
     {
         if (string.IsNullOrWhiteSpace(name))
@@ -48,5 +51,6 @@ public sealed class Provider
         Phone = phone;
         Email = email;
         Address = address;
+        UpdatedAt = DateTimeOffset.UtcNow;
     }
 }

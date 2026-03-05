@@ -60,15 +60,12 @@ public sealed class LocationStockRepository : ILocationStockRepository
             .ToDictionaryAsync(item => item.ProductId, item => item.Total, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<LocationStock>> GetLowStockByLocationAsync(Guid locationId, CancellationToken cancellationToken = default)
+    public async Task<int> GetTotalForProductAsync(Guid productId, CancellationToken cancellationToken = default)
     {
         return await _dbContext.LocationStocks
             .AsNoTracking()
-            .Include(s => s.Location)
-            .Include(s => s.Product)
-            .Where(s => s.LocationId == locationId && s.Quantity <= s.ReorderLevel)
-            .OrderBy(s => s.Quantity)
-            .ToListAsync(cancellationToken);
+            .Where(stock => stock.ProductId == productId)
+            .SumAsync(stock => stock.Quantity, cancellationToken);
     }
 
     public async Task AddAsync(LocationStock stock, CancellationToken cancellationToken = default)

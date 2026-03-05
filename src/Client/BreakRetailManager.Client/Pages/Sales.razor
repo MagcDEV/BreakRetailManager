@@ -488,12 +488,6 @@
         var request = new CreateSalesOrderRequest(lineRequests, selectedLocationId, selectedPayment);
         var created = await SalesApi.CreateOrderAsync(request);
 
-        // Decrement stock at the sale location for each sold product
-        foreach (var line in currentOrderLines)
-        {
-            await InventoryApi.UpdateLocationStockForSaleAsync(selectedLocationId, line.ProductId, -line.Quantity);
-        }
-
         var isOffline = created.Number.StartsWith("OFFLINE-", StringComparison.OrdinalIgnoreCase);
         var finalTotal = created.Total;
         var discountText = created.DiscountTotal > 0

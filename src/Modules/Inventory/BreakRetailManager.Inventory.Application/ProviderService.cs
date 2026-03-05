@@ -1,3 +1,4 @@
+using BreakRetailManager.BuildingBlocks.Pagination;
 using BreakRetailManager.Inventory.Contracts;
 
 namespace BreakRetailManager.Inventory.Application;
@@ -15,6 +16,14 @@ public sealed class ProviderService
     {
         var providers = await _providerRepository.GetAllAsync(cancellationToken);
         return providers.Select(InventoryMappings.ToDto).ToList();
+    }
+
+    public async Task<PagedResult<ProviderDto>> GetProvidersPagedAsync(
+        int page, int pageSize, CancellationToken cancellationToken)
+    {
+        var (providers, totalCount) = await _providerRepository.GetPagedAsync(page, pageSize, cancellationToken);
+        var items = providers.Select(InventoryMappings.ToDto).ToList();
+        return new PagedResult<ProviderDto>(items, totalCount, page, pageSize);
     }
 
     public async Task<ProviderDto?> GetProviderByIdAsync(Guid id, CancellationToken cancellationToken)

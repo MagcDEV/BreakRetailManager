@@ -21,6 +21,22 @@ public sealed class ProviderRepository : IProviderRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<(IReadOnlyList<Provider> Items, int TotalCount)> GetPagedAsync(
+        int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        var query = _dbContext.Providers
+            .AsNoTracking()
+            .OrderBy(provider => provider.Name);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items, totalCount);
+    }
+
     public async Task<Provider?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
         return await _dbContext.Providers

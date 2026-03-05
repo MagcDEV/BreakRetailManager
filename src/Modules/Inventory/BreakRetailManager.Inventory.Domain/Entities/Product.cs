@@ -87,6 +87,8 @@ public sealed class Product
 
     public DateTimeOffset UpdatedAt { get; private set; }
 
+    public bool IsActive { get; private set; } = true;
+
     public bool IsLowStock => StockQuantity <= ReorderLevel;
 
     public void UpdateDetails(
@@ -143,6 +145,18 @@ public sealed class Product
         }
 
         StockQuantity = total;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    public void Deactivate()
+    {
+        IsActive = false;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    public void Activate()
+    {
+        IsActive = true;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 }

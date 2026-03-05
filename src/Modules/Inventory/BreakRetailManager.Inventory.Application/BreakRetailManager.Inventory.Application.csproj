@@ -3,6 +3,11 @@
   <ItemGroup>
     <ProjectReference Include="..\BreakRetailManager.Inventory.Domain\BreakRetailManager.Inventory.Domain.csproj" />
     <ProjectReference Include="..\BreakRetailManager.Inventory.Contracts\BreakRetailManager.Inventory.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\BreakRetailManager.BuildingBlocks\BreakRetailManager.BuildingBlocks.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="*" />
   </ItemGroup>
 
   <PropertyGroup>

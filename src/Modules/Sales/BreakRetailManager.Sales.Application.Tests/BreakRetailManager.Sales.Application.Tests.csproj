@@ -22,6 +22,7 @@
     <ProjectReference Include="..\BreakRetailManager.Sales.Application\BreakRetailManager.Sales.Application.csproj" />
     <ProjectReference Include="..\BreakRetailManager.Sales.Contracts\BreakRetailManager.Sales.Contracts.csproj" />
     <ProjectReference Include="..\BreakRetailManager.Sales.Domain\BreakRetailManager.Sales.Domain.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\BreakRetailManager.BuildingBlocks\BreakRetailManager.BuildingBlocks.csproj" />
   </ItemGroup>
 
 </Project>

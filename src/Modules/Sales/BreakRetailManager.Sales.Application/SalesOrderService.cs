@@ -1,3 +1,4 @@
+using BreakRetailManager.BuildingBlocks.Inventory;
 using BreakRetailManager.Sales.Contracts;
 
 namespace BreakRetailManager.Sales.Application;
@@ -7,12 +8,18 @@ public sealed class SalesOrderService
     private readonly ISalesOrderRepository _repository;
     private readonly IOfferRepository _offerRepository;
     private readonly IArcaFiscalService _fiscalService;
+    private readonly IInventoryStockService _inventoryStockService;
 
-    public SalesOrderService(ISalesOrderRepository repository, IOfferRepository offerRepository, IArcaFiscalService fiscalService)
+    public SalesOrderService(
+        ISalesOrderRepository repository,
+        IOfferRepository offerRepository,
+        IArcaFiscalService fiscalService,
+        IInventoryStockService inventoryStockService)
     {
         _repository = repository;
         _offerRepository = offerRepository;
         _fiscalService = fiscalService;
+        _inventoryStockService = inventoryStockService;
     }
 
     public async Task<IReadOnlyList<SalesOrderDto>> GetOrdersAsync(CancellationToken cancellationToken = default)
@@ -43,6 +50,14 @@ public sealed class SalesOrderService
                 fiscal.PointOfSale,
                 fiscal.InvoiceType);
         }
+
+        // Decrement inventory stock atomically before persisting the order
+        var stockItems = request.Lines
+            .Select(line => new SaleStockItem(line.ProductId, line.Quantity))
+            .ToList();
+
+        await _inventoryStockService.DecrementStockForSaleAsync(
+            request.LocationId, stockItems, cancellationToken);
 
         await _repository.AddAsync(order, cancellationToken);
         await _repository.SaveChangesAsync(cancellationToken);

@@ -88,6 +88,11 @@ public sealed class SalesModule : IModule
                             ["request"] = new[] { ex.Message }
                         });
                     }
+                    catch (InvalidOperationException ex) when (ex.Message.Contains("stock", StringComparison.OrdinalIgnoreCase))
+                    {
+                        logger.LogWarning(ex, "Insufficient inventory stock during sales order creation");
+                        return Results.Conflict(new { detail = ex.Message, title = "Insufficient stock" });
+                    }
                     catch (InvalidOperationException ex)
                     {
                         logger.LogError(ex, "Fiscal authorization failed during sales order creation");

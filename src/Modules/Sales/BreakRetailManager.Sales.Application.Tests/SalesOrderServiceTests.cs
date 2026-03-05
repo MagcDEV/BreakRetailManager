@@ -1,4 +1,5 @@
-﻿using BreakRetailManager.Sales.Contracts;
+﻿using BreakRetailManager.BuildingBlocks.Inventory;
+using BreakRetailManager.Sales.Contracts;
 using BreakRetailManager.Sales.Domain.Entities;
 using DomainOfferDiscountType = BreakRetailManager.Sales.Domain.OfferDiscountType;
 
@@ -154,7 +155,8 @@ public sealed class SalesOrderServiceTests
         orderRepository = new InMemorySalesOrderRepository();
         fiscalService = new FakeArcaFiscalService();
         var offerRepository = new InMemoryOfferRepository(offers);
-        return new SalesOrderService(orderRepository, offerRepository, fiscalService);
+        var inventoryStockService = new NoOpInventoryStockService();
+        return new SalesOrderService(orderRepository, offerRepository, fiscalService, inventoryStockService);
     }
 
     private static CreateSalesOrderRequest CreateRequest(
@@ -243,6 +245,17 @@ public sealed class SalesOrderServiceTests
                 InvoiceNumber: 1,
                 PointOfSale: 1,
                 InvoiceType: 1));
+        }
+    }
+
+    private sealed class NoOpInventoryStockService : IInventoryStockService
+    {
+        public Task DecrementStockForSaleAsync(
+            Guid locationId,
+            IReadOnlyList<SaleStockItem> items,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
         }
     }
 }

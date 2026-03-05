@@ -1,4 +1,6 @@
+using BreakRetailManager.BuildingBlocks.Inventory;
 using BreakRetailManager.BuildingBlocks.Modules;
+using BreakRetailManager.BuildingBlocks.Pagination;
 using BreakRetailManager.BuildingBlocks.Realtime;
 using BreakRetailManager.Inventory.Application;
 using BreakRetailManager.Inventory.Contracts;
@@ -35,6 +37,7 @@ public sealed class InventoryModule : IModule
         services.AddScoped<ILocationRepository, LocationRepository>();
         services.AddScoped<ILocationStockRepository, LocationStockRepository>();
         services.AddScoped<LocationService>();
+        services.AddScoped<IInventoryStockService, InventoryStockService>();
     }
 
     public void MapEndpoints(IEndpointRouteBuilder endpoints)
@@ -48,8 +51,18 @@ public sealed class InventoryModule : IModule
             .RequireAuthorization("Manager");
 
         // Product endpoints
-        managerGroup.MapGet("/products", async (ProductService service, CancellationToken cancellationToken) =>
-            Results.Ok(await service.GetProductsAsync(cancellationToken)))
+        managerGroup.MapGet("/products", async (int? page, int? pageSize, ProductService service, CancellationToken cancellationToken) =>
+        {
+            if (page.HasValue || pageSize.HasValue)
+            {
+                var p = Math.Max(page ?? 1, 1);
+                var ps = Math.Clamp(pageSize ?? 25, 1, 100);
+                return Results.Ok(await service.GetProductsPagedAsync(p, ps, cancellationToken));
+            }
+
+            return Results.Ok(await service.GetProductsAsync(cancellationToken));
+        })
+            .Produces<PagedResult<ProductDto>>()
             .Produces<IReadOnlyList<ProductDto>>();
 
         managerGroup.MapGet("/products/low-stock", async (ProductService service, CancellationToken cancellationToken) =>
@@ -70,7 +83,10 @@ public sealed class InventoryModule : IModule
           .RequireAuthorization("Cashier");
 
         managerGroup.MapPost("/products", async (CreateProductRequest request, ProductService service, CancellationToken cancellationToken) =>
-            Results.Created($"/api/inventory/products", await service.CreateProductAsync(request, cancellationToken)))
+        {
+            var created = await service.CreateProductAsync(request, cancellationToken);
+            return Results.Created($"/api/inventory/products/{created.Id}", created);
+        })
             .Produces<ProductDto>(StatusCodes.Status201Created);
 
         managerGroup.MapPut("/products/{id:guid}", async (Guid id, UpdateProductRequest request, ProductService service, CancellationToken cancellationToken) =>
@@ -80,8 +96,18 @@ public sealed class InventoryModule : IModule
         }).Produces<ProductDto>();
 
         // Provider endpoints
-        managerGroup.MapGet("/providers", async (ProviderService service, CancellationToken cancellationToken) =>
-            Results.Ok(await service.GetProvidersAsync(cancellationToken)))
+        managerGroup.MapGet("/providers", async (int? page, int? pageSize, ProviderService service, CancellationToken cancellationToken) =>
+        {
+            if (page.HasValue || pageSize.HasValue)
+            {
+                var p = Math.Max(page ?? 1, 1);
+                var ps = Math.Clamp(pageSize ?? 25, 1, 100);
+                return Results.Ok(await service.GetProvidersPagedAsync(p, ps, cancellationToken));
+            }
+
+            return Results.Ok(await service.GetProvidersAsync(cancellationToken));
+        })
+            .Produces<PagedResult<ProviderDto>>()
             .Produces<IReadOnlyList<ProviderDto>>();
 
         managerGroup.MapGet("/providers/{id:guid}", async (Guid id, ProviderService service, CancellationToken cancellationToken) =>
@@ -91,7 +117,10 @@ public sealed class InventoryModule : IModule
         }).Produces<ProviderDto>();
 
         managerGroup.MapPost("/providers", async (CreateProviderRequest request, ProviderService service, CancellationToken cancellationToken) =>
-            Results.Created($"/api/inventory/providers", await service.CreateProviderAsync(request, cancellationToken)))
+        {
+            var created = await service.CreateProviderAsync(request, cancellationToken);
+            return Results.Created($"/api/inventory/providers/{created.Id}", created);
+        })
             .Produces<ProviderDto>(StatusCodes.Status201Created);
 
         managerGroup.MapPut("/providers/{id:guid}", async (Guid id, UpdateProviderRequest request, ProviderService service, CancellationToken cancellationToken) =>
@@ -113,7 +142,10 @@ public sealed class InventoryModule : IModule
         }).Produces<LocationDto>();
 
         managerGroup.MapPost("/locations", async (CreateLocationRequest request, LocationService service, CancellationToken cancellationToken) =>
-            Results.Created($"/api/inventory/locations", await service.CreateLocationAsync(request, cancellationToken)))
+        {
+            var created = await service.CreateLocationAsync(request, cancellationToken);
+            return Results.Created($"/api/inventory/locations/{created.Id}", created);
+        })
             .Produces<LocationDto>(StatusCodes.Status201Created);
 
         // Location stock endpoints

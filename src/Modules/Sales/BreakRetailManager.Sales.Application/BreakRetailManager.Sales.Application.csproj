@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\BreakRetailManager.Sales.Domain\BreakRetailManager.Sales.Domain.csproj" />
     <ProjectReference Include="..\BreakRetailManager.Sales.Contracts\BreakRetailManager.Sales.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\BreakRetailManager.BuildingBlocks\BreakRetailManager.BuildingBlocks.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

@@ -30,6 +30,7 @@ public sealed class InventoryDbContext : DbContext
             provider.Property(entity => entity.Email).HasMaxLength(200);
             provider.Property(entity => entity.Address).HasMaxLength(500);
             provider.Property(entity => entity.CreatedAt).IsRequired();
+            provider.Property(entity => entity.UpdatedAt).IsRequired();
         });
 
         modelBuilder.Entity<Product>(product =>
@@ -47,6 +48,7 @@ public sealed class InventoryDbContext : DbContext
             product.Property(entity => entity.ReorderLevel).IsRequired();
             product.Property(entity => entity.CreatedAt).IsRequired();
             product.Property(entity => entity.UpdatedAt).IsRequired();
+            product.Property(entity => entity.IsActive).IsRequired().HasDefaultValue(true);
             product.Ignore(entity => entity.IsLowStock);
 
             product.HasOne(entity => entity.Provider)
@@ -72,6 +74,7 @@ public sealed class InventoryDbContext : DbContext
             stock.HasIndex(e => new { e.LocationId, e.ProductId }).IsUnique();
             stock.Property(e => e.Quantity).IsRequired();
             stock.Property(e => e.ReorderLevel).IsRequired();
+            stock.Property(e => e.RowVersion).IsRowVersion();
             stock.Ignore(e => e.IsLowStock);
 
             stock.HasOne(e => e.Location)

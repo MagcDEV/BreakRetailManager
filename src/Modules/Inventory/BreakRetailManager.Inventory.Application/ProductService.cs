@@ -1,5 +1,7 @@
+using BreakRetailManager.BuildingBlocks.Pagination;
 using BreakRetailManager.Inventory.Contracts;
 using BreakRetailManager.Inventory.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
 
 namespace BreakRetailManager.Inventory.Application;
 
@@ -17,19 +19,15 @@ public sealed class ProductService
     public async Task<IReadOnlyList<ProductDto>> GetProductsAsync(CancellationToken cancellationToken)
     {
         var products = await _productRepository.GetAllAsync(cancellationToken);
-        var stockTotals = await _locationStockRepository.GetTotalsByProductAsync(
-            products.Select(product => product.Id).ToArray(),
-            cancellationToken);
+        return await EnrichWithStockTotals(products, cancellationToken);
+    }
 
-        return products
-            .Select(product =>
-            {
-                var dto = InventoryMappings.ToDto(product);
-                return stockTotals.TryGetValue(product.Id, out var total)
-                    ? dto with { StockQuantity = total, IsLowStock = total <= dto.ReorderLevel }
-                    : dto;
-            })
-            .ToList();
+    public async Task<PagedResult<ProductDto>> GetProductsPagedAsync(
+        int page, int pageSize, CancellationToken cancellationToken)
+    {
+        var (products, totalCount) = await _productRepository.GetPagedAsync(page, pageSize, cancellationToken);
+        var items = await EnrichWithStockTotals(products, cancellationToken);
+        return new PagedResult<ProductDto>(items, totalCount, page, pageSize);
     }
 
     public async Task<ProductDto?> GetProductByIdAsync(Guid id, CancellationToken cancellationToken)
@@ -67,18 +65,9 @@ public sealed class ProductService
     public async Task<IReadOnlyList<ProductDto>> GetLowStockProductsAsync(CancellationToken cancellationToken)
     {
         var products = await _productRepository.GetAllAsync(cancellationToken);
-        var stockTotals = await _locationStockRepository.GetTotalsByProductAsync(
-            products.Select(product => product.Id).ToArray(),
-            cancellationToken);
+        var enriched = await EnrichWithStockTotals(products, cancellationToken);
 
-        return products
-            .Select(product =>
-            {
-                var dto = InventoryMappings.ToDto(product);
-                return stockTotals.TryGetValue(product.Id, out var total)
-                    ? dto with { StockQuantity = total, IsLowStock = total <= dto.ReorderLevel }
-                    : dto;
-            })
+        return enriched
             .Where(product => product.StockQuantity <= product.ReorderLevel)
             .OrderBy(product => product.StockQuantity)
             .ToList();
@@ -121,9 +110,29 @@ public sealed class ProductService
     public async Task<LocationStockDto?> UpdateLocationStockAsync(
         Guid locationId, Guid productId, int quantity, CancellationToken cancellationToken)
     {
+        const int maxRetries = 3;
+
+        for (var attempt = 0; attempt < maxRetries; attempt++)
+        {
+            try
+            {
+                return await TryUpdateLocationStockAsync(locationId, productId, quantity, cancellationToken);
+            }
+            catch (DbUpdateConcurrencyException) when (attempt < maxRetries - 1)
+            {
+                // Retry with fresh data on next iteration
+            }
+        }
+
+        // Final attempt — let the exception propagate
+        return await TryUpdateLocationStockAsync(locationId, productId, quantity, cancellationToken);
+    }
+
+    private async Task<LocationStockDto?> TryUpdateLocationStockAsync(
+        Guid locationId, Guid productId, int quantity, CancellationToken cancellationToken)
+    {
         var stock = await _locationStockRepository.GetAsync(locationId, productId, cancellationToken);
         var stockExisted = stock is not null;
-        var previousQuantity = stock?.Quantity ?? 0;
 
         if (!stockExisted)
         {
@@ -141,12 +150,17 @@ public sealed class ProductService
 
         stock.UpdateQuantity(quantity);
 
-        // Recompute global aggregate using persisted totals + in-memory delta
-        var allStocks = await _locationStockRepository.GetByProductAsync(productId, cancellationToken);
-        var persistedTotal = allStocks.Sum(s => s.Quantity);
-        var totalAcrossLocations = stockExisted
-            ? persistedTotal - previousQuantity + stock.Quantity
-            : persistedTotal + stock.Quantity;
+        // Recompute global aggregate from DB
+        var totalAcrossLocations = await _locationStockRepository.GetTotalForProductAsync(productId, cancellationToken);
+        // Adjust for the in-flight delta that hasn't been persisted yet
+        if (stockExisted)
+        {
+            totalAcrossLocations += quantity;
+        }
+        else
+        {
+            totalAcrossLocations += stock.Quantity;
+        }
 
         var p = await _productRepository.GetByIdAsync(productId, cancellationToken);
         p?.SetStockQuantity(totalAcrossLocations);
@@ -167,5 +181,23 @@ public sealed class ProductService
     {
         var stock = await _locationStockRepository.GetAsync(locationId, productId, cancellationToken);
         return stock?.Quantity ?? 0;
+    }
+
+    private async Task<IReadOnlyList<ProductDto>> EnrichWithStockTotals(
+        IReadOnlyList<Product> products, CancellationToken cancellationToken)
+    {
+        var stockTotals = await _locationStockRepository.GetTotalsByProductAsync(
+            products.Select(product => product.Id).ToArray(),
+            cancellationToken);
+
+        return products
+            .Select(product =>
+            {
+                var dto = InventoryMappings.ToDto(product);
+                return stockTotals.TryGetValue(product.Id, out var total)
+                    ? dto with { StockQuantity = total, IsLowStock = total <= dto.ReorderLevel }
+                    : dto;
+            })
+            .ToList();
     }
 }
