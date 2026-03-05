@@ -1,0 +1,75 @@
+@using static BreakRetailManager.Client.Pages.Inventory
+
+@if (IsLoading)
+{
+    <div class="p-3 text-muted">Loading...</div>
+}
+else if (LocationStocks.Count == 0 && UnassignedLocations.Count == 0)
+{
+    <div class="p-3 text-muted">No stock assigned to any location yet.</div>
+}
+else
+{
+    <table class="table table-sm mb-0">
+        <thead>
+            <tr>
+                <th>Location</th>
+                <th class="text-end">Qty</th>
+                <th class="text-center">Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var stock in LocationStocks)
+            {
+                <tr @key="stock.LocationId" class="@(stock.IsLowStock ? "table-warning" : "")">
+                    <td>📍 @stock.LocationName</td>
+                    <td class="text-end fw-bold">@stock.Quantity</td>
+                    <td class="text-center">
+                        @if (stock.IsLowStock)
+                        {
+                            <span class="badge bg-warning text-dark">Low</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-success">OK</span>
+                        }
+                    </td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-primary py-0"
+                                @onclick="() => OnSelectLocation.InvokeAsync(stock)">
+                            Adjust
+                        </button>
+                    </td>
+                </tr>
+            }
+            @foreach (var loc in UnassignedLocations)
+            {
+                <tr @key="loc.Id" class="text-muted">
+                    <td>📍 @loc.Name</td>
+                    <td class="text-end">0</td>
+                    <td class="text-center"><span class="badge bg-secondary">None</span></td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-primary py-0"
+                                @onclick="() => HandleUnassignedSelect(loc)">
+                            Adjust
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    [Parameter] public IReadOnlyList<LocationStockDto> LocationStocks { get; set; } = [];
+    [Parameter] public IReadOnlyList<LocationDto> UnassignedLocations { get; set; } = [];
+    [Parameter] public bool IsLoading { get; set; }
+    [Parameter] public EventCallback<LocationStockDto> OnSelectLocation { get; set; }
+
+    private async Task HandleUnassignedSelect(LocationDto loc)
+    {
+        var syntheticStock = new LocationStockDto(Guid.Empty, loc.Id, loc.Name, Guid.Empty, string.Empty, 0, 0, false);
+        await OnSelectLocation.InvokeAsync(syntheticStock);
+    }
+}

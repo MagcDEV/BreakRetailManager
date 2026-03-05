@@ -1,0 +1,79 @@
+@using static BreakRetailManager.Client.Pages.Inventory
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">@Title</h5>
+    @if (ShowCancel)
+    {
+        <button class="btn btn-sm btn-outline-secondary" @onclick="OnCancel">Cancel</button>
+    }
+</div>
+
+<EditForm Model="Model" OnValidSubmit="OnValidSubmit" class="mb-4">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="row g-3">
+        <div class="col-md-4">
+            <label class="form-label">Barcode</label>
+            <InputText class="form-control" @bind-Value="FormModel.Barcode" />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Name</label>
+            <InputText class="form-control" @bind-Value="FormModel.Name" />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Category</label>
+            <InputText class="form-control" @bind-Value="FormModel.Category" />
+        </div>
+        <div class="col-md-12">
+            <label class="form-label">Description</label>
+            <InputText class="form-control" @bind-Value="FormModel.Description" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Cost Price</label>
+            <InputNumber class="form-control" @bind-Value="FormModel.CostPrice" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Sale Price</label>
+            <InputNumber class="form-control" @bind-Value="FormModel.SalePrice" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Reorder Level</label>
+            <InputNumber class="form-control" @bind-Value="FormModel.ReorderLevel" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Provider</label>
+            <InputSelect class="form-select" @bind-Value="FormModel.ProviderId">
+                @if (!ShowCancel)
+                {
+                    <option value="">-- Select provider --</option>
+                }
+                @foreach (var provider in Providers)
+                {
+                    <option @key="provider.Id" value="@provider.Id">@provider.Name</option>
+                }
+            </InputSelect>
+        </div>
+        <div class="col-md-12">
+            <button class="btn btn-primary me-2" type="submit" disabled="@IsSubmitting">
+                @(ShowCancel ? "Save Changes" : "Create Product")
+            </button>
+            @if (ShowCancel)
+            {
+                <button class="btn btn-outline-secondary" type="button" @onclick="OnCancel">Cancel</button>
+            }
+        </div>
+    </div>
+</EditForm>
+
+@code {
+    [Parameter] public string Title { get; set; } = string.Empty;
+    [Parameter] public IProductFormModel Model { get; set; } = default!;
+    [Parameter] public IReadOnlyList<ProviderDto> Providers { get; set; } = [];
+    [Parameter] public EventCallback OnValidSubmit { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+    [Parameter] public bool ShowCancel { get; set; }
+    [Parameter] public bool IsSubmitting { get; set; }
+
+    private IProductFormModel FormModel => Model;
+}

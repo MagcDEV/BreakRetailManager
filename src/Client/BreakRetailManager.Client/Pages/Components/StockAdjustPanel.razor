@@ -1,0 +1,86 @@
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-3">
+            <div class="card-header bg-light">
+                <strong>Stock by Location</strong>
+                <span class="badge bg-primary float-end">Total: @LocationStocks.Sum(s => s.Quantity)</span>
+            </div>
+            <div class="card-body p-0">
+                <StockLocationTable LocationStocks="LocationStocks"
+                                               UnassignedLocations="UnassignedLocations"
+                                               IsLoading="IsLoading"
+                                               OnSelectLocation="HandleSelectLocation" />
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-light">
+                <strong>Adjust Stock</strong>
+            </div>
+            <div class="card-body">
+                @if (SelectedLocationStock is null)
+                {
+                    <div class="text-muted text-center py-3">
+                        ← Select a location to adjust
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-light border mb-3 py-2">
+                        📍 <strong>@SelectedLocationStock.LocationName</strong> — Current: <strong>@SelectedLocationStock.Quantity</strong> units
+                    </div>
+
+                    <div class="row g-3 align-items-end mb-3">
+                        <div class="col">
+                            <label class="form-label">Quantity to add/remove</label>
+                            <input type="number" class="form-control" value="@AdjustQuantity" @oninput="HandleQuantityInput" />
+                        </div>
+                        <div class="col-auto">
+                            <button class="btn btn-success" disabled="@IsSubmitting" @onclick="OnApplyAdjust">Apply</button>
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-1 flex-wrap">
+                        <button class="btn btn-outline-success btn-sm" disabled="@IsSubmitting" @onclick="() => OnQuickAdjust.InvokeAsync(1)">+1</button>
+                        <button class="btn btn-outline-success btn-sm" disabled="@IsSubmitting" @onclick="() => OnQuickAdjust.InvokeAsync(5)">+5</button>
+                        <button class="btn btn-outline-success btn-sm" disabled="@IsSubmitting" @onclick="() => OnQuickAdjust.InvokeAsync(10)">+10</button>
+                        <button class="btn btn-outline-success btn-sm" disabled="@IsSubmitting" @onclick="() => OnQuickAdjust.InvokeAsync(50)">+50</button>
+                        <button class="btn btn-outline-danger btn-sm" disabled="@IsSubmitting" @onclick="() => OnQuickAdjust.InvokeAsync(-1)">-1</button>
+                        <button class="btn btn-outline-danger btn-sm" disabled="@IsSubmitting" @onclick="() => OnQuickAdjust.InvokeAsync(-5)">-5</button>
+                        <button class="btn btn-outline-danger btn-sm" disabled="@IsSubmitting" @onclick="() => OnQuickAdjust.InvokeAsync(-10)">-10</button>
+                        <button class="btn btn-outline-danger btn-sm" disabled="@IsSubmitting" @onclick="() => OnQuickAdjust.InvokeAsync(-50)">-50</button>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<LocationStockDto> LocationStocks { get; set; } = [];
+    [Parameter] public IReadOnlyList<LocationDto> UnassignedLocations { get; set; } = [];
+    [Parameter] public LocationStockDto? SelectedLocationStock { get; set; }
+    [Parameter] public EventCallback<LocationStockDto> OnSelectLocation { get; set; }
+    [Parameter] public int AdjustQuantity { get; set; }
+    [Parameter] public EventCallback<int> AdjustQuantityChanged { get; set; }
+    [Parameter] public EventCallback OnApplyAdjust { get; set; }
+    [Parameter] public EventCallback<int> OnQuickAdjust { get; set; }
+    [Parameter] public bool IsSubmitting { get; set; }
+    [Parameter] public bool IsLoading { get; set; }
+
+    private async Task HandleQuantityInput(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var val))
+        {
+            AdjustQuantity = val;
+            await AdjustQuantityChanged.InvokeAsync(val);
+        }
+    }
+
+    private async Task HandleSelectLocation(LocationStockDto stock)
+    {
+        await OnSelectLocation.InvokeAsync(stock);
+    }
+}

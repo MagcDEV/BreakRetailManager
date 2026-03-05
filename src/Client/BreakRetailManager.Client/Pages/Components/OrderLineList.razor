@@ -1,0 +1,61 @@
+@using static BreakRetailManager.Client.Pages.Sales
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>Current Order</strong>
+        <span class="badge bg-secondary">@Lines.Count item(s)</span>
+    </div>
+    <div class="card-body p-0">
+        @if (Lines.Count == 0)
+        {
+            <div class="p-4 text-center text-muted">
+                <em>Scan a product barcode to start a sale.</em>
+            </div>
+        }
+        else
+        {
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th class="text-center">Qty</th>
+                        <th class="text-end">Unit Price</th>
+                        <th class="text-end">Subtotal</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var line in Lines)
+                    {
+                        <tr @key="line.ProductId">
+                            <td>
+                                @line.ProductName
+                                <br /><small class="text-muted">@line.Barcode</small>
+                            </td>
+                            <td class="text-center">
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-secondary" @onclick="() => OnQuantityChange.InvokeAsync((line, -1))">−</button>
+                                    <span class="btn btn-outline-secondary disabled">@line.Quantity</span>
+                                    <button class="btn btn-outline-secondary" @onclick="() => OnQuantityChange.InvokeAsync((line, 1))">+</button>
+                                </div>
+                            </td>
+                            <td class="text-end">@line.UnitPrice.ToString("C", ArsCulture)</td>
+                            <td class="text-end fw-bold">@((line.Quantity * line.UnitPrice).ToString("C", ArsCulture))</td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => OnRemoveLine.InvokeAsync(line)">✕</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</div>
+
+@code {
+    private static readonly System.Globalization.CultureInfo ArsCulture = new("es-AR");
+
+    [Parameter] public IReadOnlyList<OrderLineModel> Lines { get; set; } = [];
+    [Parameter] public EventCallback<(OrderLineModel Line, int Delta)> OnQuantityChange { get; set; }
+    [Parameter] public EventCallback<OrderLineModel> OnRemoveLine { get; set; }
+}

@@ -1,0 +1,60 @@
+@if (Products.Count == 0)
+{
+    <p><em>No products found.</em></p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Barcode</th>
+                <th>Name</th>
+                <th>Category</th>
+                <th>Cost</th>
+                <th>Sale Price</th>
+                <th>Stock</th>
+                <th>Reorder Lvl</th>
+                <th>Provider</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var product in Products)
+            {
+                <tr @key="product.Id" class="@(product.IsLowStock ? "table-warning" : "")">
+                    <td>@product.Barcode</td>
+                    <td>@product.Name</td>
+                    <td>@product.Category</td>
+                    <td>@product.CostPrice.ToString("C", ArsCulture)</td>
+                    <td>@product.SalePrice.ToString("C", ArsCulture)</td>
+                    <td>@product.StockQuantity</td>
+                    <td>@product.ReorderLevel</td>
+                    <td>@product.ProviderName</td>
+                    <td>
+                        @if (product.IsLowStock)
+                        {
+                            <span class="badge bg-warning text-dark">Low Stock</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-success">In Stock</span>
+                        }
+                    </td>
+                    <td class="text-nowrap">
+                        <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => OnEditProduct.InvokeAsync(product)">Edit</button>
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="() => OnAdjustStock.InvokeAsync(product)">Stock</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private static readonly System.Globalization.CultureInfo ArsCulture = new("es-AR");
+
+    [Parameter] public IReadOnlyList<ProductDto> Products { get; set; } = [];
+    [Parameter] public EventCallback<ProductDto> OnEditProduct { get; set; }
+    [Parameter] public EventCallback<ProductDto> OnAdjustStock { get; set; }
+}

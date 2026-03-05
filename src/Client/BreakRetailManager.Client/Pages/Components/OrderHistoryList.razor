@@ -1,0 +1,45 @@
+@if (Orders.Count == 0)
+{
+    <p><em>No orders yet.</em></p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Number</th>
+                <th>Created</th>
+                <th>Subtotal</th>
+                <th>Discount</th>
+                <th>Total</th>
+                <th>Lines</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var order in Orders)
+            {
+                <tr @key="order.Number">
+                    <td>@order.Number</td>
+                    <td>@order.CreatedAt.LocalDateTime.ToString("g")</td>
+                    <td>@order.Subtotal.ToString("C", ArsCulture)</td>
+                    <td>@order.DiscountTotal.ToString("C", ArsCulture)</td>
+                    <td>@order.Total.ToString("C", ArsCulture)</td>
+                    <td>
+                        <ul class="mb-0">
+                            @foreach (var line in order.Lines)
+                            {
+                                <li @key="line.ProductName">@line.ProductName (@line.Quantity x @line.UnitPrice.ToString("C", ArsCulture))</li>
+                            }
+                        </ul>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private static readonly System.Globalization.CultureInfo ArsCulture = new("es-AR");
+
+    [Parameter] public IReadOnlyList<SalesOrderDto> Orders { get; set; } = [];
+}

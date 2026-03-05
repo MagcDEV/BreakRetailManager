@@ -1,0 +1,43 @@
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col">
+                <label class="form-label fw-bold">Scan Barcode</label>
+                <input type="text" class="form-control form-control-lg" placeholder="Scan or type barcode..."
+                       value="@BarcodeInput" @oninput="HandleInput"
+                       @onkeydown="OnKeyDown" autofocus />
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-primary btn-lg" @onclick="OnLookup" disabled="@IsLoading">
+                    @(IsLoading ? "Searching..." : "Add")
+                </button>
+            </div>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+        {
+            <div class="text-danger mt-2">@ErrorMessage</div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public string BarcodeInput { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> BarcodeInputChanged { get; set; }
+    [Parameter] public EventCallback OnLookup { get; set; }
+    [Parameter] public string? ErrorMessage { get; set; }
+    [Parameter] public bool IsLoading { get; set; }
+
+    private async Task HandleInput(ChangeEventArgs e)
+    {
+        BarcodeInput = e.Value?.ToString() ?? string.Empty;
+        await BarcodeInputChanged.InvokeAsync(BarcodeInput);
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await OnLookup.InvokeAsync();
+        }
+    }
+}

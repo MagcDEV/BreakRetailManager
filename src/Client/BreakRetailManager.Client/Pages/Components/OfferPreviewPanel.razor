@@ -1,0 +1,25 @@
+@using static BreakRetailManager.Client.Pages.Sales
+
+@if (AppliedOffers.Count > 0)
+{
+    <div class="mb-2">
+        <small class="fw-bold text-success">Applied Offers</small>
+        <ul class="small mb-1">
+            @foreach (var appliedOffer in AppliedOffers)
+            {
+                <li @key="appliedOffer.Name">@appliedOffer.Name (@appliedOffer.ApplicationCount)x: -@appliedOffer.DiscountAmount.ToString("C", ArsCulture)</li>
+            }
+        </ul>
+    </div>
+    <div class="d-flex justify-content-between mb-2 text-success">
+        <span>Discount:</span>
+        <span>-@TotalDiscount.ToString("C", ArsCulture)</span>
+    </div>
+}
+
+@code {
+    private static readonly System.Globalization.CultureInfo ArsCulture = new("es-AR");
+
+    [Parameter] public IReadOnlyList<AppliedOfferPreviewModel> AppliedOffers { get; set; } = [];
+    [Parameter] public decimal TotalDiscount { get; set; }
+}

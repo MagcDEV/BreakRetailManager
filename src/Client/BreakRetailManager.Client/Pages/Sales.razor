@@ -74,82 +74,15 @@
 @if (activeTab == PosTab.NewSale)
 {
     <div class="row">
-        <!-- Barcode scanner input -->
         <div class="col-md-8">
-            <div class="card mb-3">
-                <div class="card-body">
-                    <div class="row g-3 align-items-end">
-                        <div class="col">
-                            <label class="form-label fw-bold">Scan Barcode</label>
-                            <input type="text" class="form-control form-control-lg" placeholder="Scan or type barcode..."
-                                   @bind="barcodeInput" @bind:event="oninput"
-                                   @onkeydown="OnBarcodeKeyDown" @ref="barcodeField" autofocus />
-                        </div>
-                        <div class="col-auto">
-                            <button class="btn btn-primary btn-lg" @onclick="LookupBarcodeAsync" disabled="@isSearching">
-                                @(isSearching ? "Searching..." : "Add")
-                            </button>
-                        </div>
-                    </div>
-                    @if (!string.IsNullOrWhiteSpace(scanError))
-                    {
-                        <div class="text-danger mt-2">@scanError</div>
-                    }
-                </div>
-            </div>
+            <BarcodeScannerInput @bind-BarcodeInput="barcodeInput"
+                                            OnLookup="LookupBarcodeAsync"
+                                            ErrorMessage="@scanError"
+                                            IsLoading="isSearching" />
 
-            <!-- Current order lines -->
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <strong>Current Order</strong>
-                    <span class="badge bg-secondary">@currentOrderLines.Count item(s)</span>
-                </div>
-                <div class="card-body p-0">
-                    @if (currentOrderLines.Count == 0)
-                    {
-                        <div class="p-4 text-center text-muted">
-                            <em>Scan a product barcode to start a sale.</em>
-                        </div>
-                    }
-                    else
-                    {
-                        <table class="table table-hover mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Product</th>
-                                    <th class="text-center">Qty</th>
-                                    <th class="text-end">Unit Price</th>
-                                    <th class="text-end">Subtotal</th>
-                                    <th></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var line in currentOrderLines)
-                                {
-                                    <tr>
-                                        <td>
-                                            @line.ProductName
-                                            <br /><small class="text-muted">@line.Barcode</small>
-                                        </td>
-                                        <td class="text-center">
-                                            <div class="btn-group btn-group-sm">
-                                                <button class="btn btn-outline-secondary" @onclick="() => ChangeQuantity(line, -1)">−</button>
-                                                <span class="btn btn-outline-secondary disabled">@line.Quantity</span>
-                                                <button class="btn btn-outline-secondary" @onclick="() => ChangeQuantity(line, 1)">+</button>
-                                            </div>
-                                        </td>
-                                        <td class="text-end">@line.UnitPrice.ToString("C", arsCulture)</td>
-                                        <td class="text-end fw-bold">@((line.Quantity * line.UnitPrice).ToString("C", arsCulture))</td>
-                                        <td>
-                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveLine(line)">✕</button>
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    }
-                </div>
-            </div>
+            <OrderLineList Lines="currentOrderLines"
+                                      OnQuantityChange="HandleQuantityChange"
+                                      OnRemoveLine="RemoveLine" />
         </div>
 
         <!-- Order summary panel -->
@@ -167,22 +100,8 @@
                         <span>Subtotal:</span>
                         <span>@OrderSubtotal.ToString("C", arsCulture)</span>
                     </div>
-                    @if (appliedOffers.Count > 0)
-                    {
-                        <div class="mb-2">
-                            <small class="fw-bold text-success">Applied Offers</small>
-                            <ul class="small mb-1">
-                                @foreach (var appliedOffer in appliedOffers)
-                                {
-                                    <li>@appliedOffer.Name (@appliedOffer.ApplicationCount)x: -@appliedOffer.DiscountAmount.ToString("C", arsCulture)</li>
-                                }
-                            </ul>
-                        </div>
-                        <div class="d-flex justify-content-between mb-2 text-success">
-                            <span>Discount:</span>
-                            <span>-@OfferPreviewDiscountTotal.ToString("C", arsCulture)</span>
-                        </div>
-                    }
+                    <OfferPreviewPanel AppliedOffers="appliedOffers"
+                                                     TotalDiscount="OfferPreviewDiscountTotal" />
                     <hr />
                     <div class="d-flex justify-content-between mb-3">
                         <span class="fs-4 fw-bold">Total:</span>
@@ -247,45 +166,7 @@
 
 @if (activeTab == PosTab.History)
 {
-    @if (orders.Count == 0)
-    {
-        <p><em>No orders yet.</em></p>
-    }
-    else
-    {
-        <table class="table table-striped">
-            <thead>
-                <tr>
-                    <th>Number</th>
-                    <th>Created</th>
-                    <th>Subtotal</th>
-                    <th>Discount</th>
-                    <th>Total</th>
-                    <th>Lines</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var order in orders)
-                {
-                    <tr>
-                        <td>@order.Number</td>
-                        <td>@order.CreatedAt.LocalDateTime.ToString("g")</td>
-                        <td>@order.Subtotal.ToString("C", arsCulture)</td>
-                        <td>@order.DiscountTotal.ToString("C", arsCulture)</td>
-                        <td>@order.Total.ToString("C", arsCulture)</td>
-                        <td>
-                            <ul class="mb-0">
-                                @foreach (var line in order.Lines)
-                                {
-                                    <li>@line.ProductName (@line.Quantity x @line.UnitPrice.ToString("C", arsCulture))</li>
-                                }
-                            </ul>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    }
+    <OrderHistoryList Orders="orders" />
 }
 
 @code {
@@ -311,8 +192,6 @@
     private string selectedLocationName = string.Empty;
     private decimal offerPreviewDiscountTotal;
 
-    private ElementReference barcodeField;
-
     private decimal OrderSubtotal => currentOrderLines.Sum(l => l.Quantity * l.UnitPrice);
 
     private decimal OfferPreviewDiscountTotal => offerPreviewDiscountTotal;
@@ -321,6 +200,9 @@
         Math.Max(0, OrderSubtotal - OfferPreviewDiscountTotal),
         2,
         MidpointRounding.AwayFromZero);
+
+    private void HandleQuantityChange((OrderLineModel Line, int Delta) args)
+        => ChangeQuantity(args.Line, args.Delta);
 
     protected override async Task OnInitializedAsync()
     {
@@ -332,12 +214,17 @@
         IsOnline = await Connectivity.IsOnlineAsync();
         if (IsOnline)
         {
-            await SalesApi.SyncOutboxAsync();
+            var syncTask = SalesApi.SyncOutboxAsync();
+            var locationsTask = InventoryApi.GetLocationsAsync();
+            var offersTask = SalesApi.GetActiveOffersAsync();
+
+            await Task.WhenAll(syncTask, locationsTask, offersTask);
+
             locations.AddRange(
-                (await InventoryApi.GetLocationsAsync())
+                (await locationsTask)
                     .Where(l => l.IsActive)
                     .OrderBy(l => l.Name, StringComparer.OrdinalIgnoreCase));
-            activeOffers.AddRange(await SalesApi.GetActiveOffersAsync());
+            activeOffers.AddRange(await offersTask);
         }
 
         RecalculateOfferPreview();
@@ -370,14 +257,6 @@
 
             StateHasChanged();
         });
-    }
-
-    private async Task OnBarcodeKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter")
-        {
-            await LookupBarcodeAsync();
-        }
     }
 
     private async Task LookupBarcodeAsync()
@@ -650,14 +529,14 @@
 
     private enum PosTab { NewSale, History }
 
-    private sealed class AppliedOfferPreviewModel
+    public sealed class AppliedOfferPreviewModel
     {
         public string Name { get; set; } = string.Empty;
         public int ApplicationCount { get; set; }
         public decimal DiscountAmount { get; set; }
     }
 
-    private sealed class OrderLineModel
+    public sealed class OrderLineModel
     {
         public Guid ProductId { get; set; }
         public string Barcode { get; set; } = string.Empty;

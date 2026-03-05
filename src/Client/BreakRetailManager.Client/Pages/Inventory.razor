@@ -49,58 +49,9 @@
 
 @if (activeTab == Tab.Products)
 {
-    @if (products.Count == 0)
-    {
-        <p><em>No products found.</em></p>
-    }
-    else
-    {
-        <table class="table table-striped">
-            <thead>
-                <tr>
-                    <th>Barcode</th>
-                    <th>Name</th>
-                    <th>Category</th>
-                    <th>Cost</th>
-                    <th>Sale Price</th>
-                    <th>Stock</th>
-                    <th>Reorder Lvl</th>
-                    <th>Provider</th>
-                    <th>Status</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var product in products)
-                {
-                    <tr class="@(product.IsLowStock ? "table-warning" : "")">
-                        <td>@product.Barcode</td>
-                        <td>@product.Name</td>
-                        <td>@product.Category</td>
-                        <td>@product.CostPrice.ToString("C", arsCulture)</td>
-                        <td>@product.SalePrice.ToString("C", arsCulture)</td>
-                        <td>@product.StockQuantity</td>
-                        <td>@product.ReorderLevel</td>
-                        <td>@product.ProviderName</td>
-                        <td>
-                            @if (product.IsLowStock)
-                            {
-                                <span class="badge bg-warning text-dark">Low Stock</span>
-                            }
-                            else
-                            {
-                                <span class="badge bg-success">In Stock</span>
-                            }
-                        </td>
-                        <td class="text-nowrap">
-                            <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => BeginEditProduct(product)">Edit</button>
-                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => BeginStockAdjust(product)">Stock</button>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    }
+    <ProductTable Products="products"
+                             OnEditProduct="BeginEditProduct"
+                             OnAdjustStock="BeginStockAdjust" />
 }
 
 @if (activeTab == Tab.LowStock)
@@ -174,111 +125,22 @@
 
 @if (activeTab == Tab.AddProduct)
 {
-    <EditForm Model="productModel" OnValidSubmit="CreateProductAsync" class="mb-4">
-        <DataAnnotationsValidator />
-        <ValidationSummary />
-
-        <div class="row g-3">
-            <div class="col-md-4">
-                <label class="form-label">Barcode</label>
-                <InputText class="form-control" @bind-Value="productModel.Barcode" />
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Name</label>
-                <InputText class="form-control" @bind-Value="productModel.Name" />
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Category</label>
-                <InputText class="form-control" @bind-Value="productModel.Category" />
-            </div>
-            <div class="col-md-12">
-                <label class="form-label">Description</label>
-                <InputText class="form-control" @bind-Value="productModel.Description" />
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Cost Price</label>
-                <InputNumber class="form-control" @bind-Value="productModel.CostPrice" />
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Sale Price</label>
-                <InputNumber class="form-control" @bind-Value="productModel.SalePrice" />
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Reorder Level</label>
-                <InputNumber class="form-control" @bind-Value="productModel.ReorderLevel" />
-            </div>
-            <div class="col-md-6">
-                <label class="form-label">Provider</label>
-                <InputSelect class="form-select" @bind-Value="productModel.ProviderId">
-                    <option value="">-- Select provider --</option>
-                    @foreach (var provider in providers)
-                    {
-                        <option value="@provider.Id">@provider.Name</option>
-                    }
-                </InputSelect>
-            </div>
-            <div class="col-md-6 d-flex align-items-end">
-                <button class="btn btn-primary" type="submit" disabled="@isSubmitting">Create Product</button>
-            </div>
-        </div>
-    </EditForm>
+    <ProductForm Title="Create Product"
+                            Model="productModel"
+                            Providers="providers"
+                            OnValidSubmit="CreateProductAsync"
+                            IsSubmitting="isSubmitting" />
 }
 
 @if (activeTab == Tab.EditProduct)
 {
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="mb-0">Editing: @editModel.Name</h5>
-        <button class="btn btn-sm btn-outline-secondary" @onclick="() => activeTab = Tab.Products">Cancel</button>
-    </div>
-
-    <EditForm Model="editModel" OnValidSubmit="UpdateProductAsync" class="mb-4">
-        <DataAnnotationsValidator />
-        <ValidationSummary />
-
-        <div class="row g-3">
-            <div class="col-md-4">
-                <label class="form-label">Barcode</label>
-                <InputText class="form-control" @bind-Value="editModel.Barcode" />
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Name</label>
-                <InputText class="form-control" @bind-Value="editModel.Name" />
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Category</label>
-                <InputText class="form-control" @bind-Value="editModel.Category" />
-            </div>
-            <div class="col-md-12">
-                <label class="form-label">Description</label>
-                <InputText class="form-control" @bind-Value="editModel.Description" />
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Cost Price</label>
-                <InputNumber class="form-control" @bind-Value="editModel.CostPrice" />
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Sale Price</label>
-                <InputNumber class="form-control" @bind-Value="editModel.SalePrice" />
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Reorder Level</label>
-                <InputNumber class="form-control" @bind-Value="editModel.ReorderLevel" />
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Provider</label>
-                <InputSelect class="form-select" @bind-Value="editModel.ProviderId">
-                    @foreach (var provider in providers)
-                    {
-                        <option value="@provider.Id">@provider.Name</option>
-                    }
-                </InputSelect>
-            </div>
-            <div class="col-md-12">
-                <button class="btn btn-primary me-2" type="submit" disabled="@isSubmitting">Save Changes</button>
-                <button class="btn btn-outline-secondary" type="button" @onclick="() => activeTab = Tab.Products">Cancel</button>
-            </div>
-        </div>
-    </EditForm>
+    <ProductForm Title="@($"Editing: {editModel.Name}")"
+                            Model="editModel"
+                            Providers="providers"
+                            OnValidSubmit="UpdateProductAsync"
+                            OnCancel="() => activeTab = Tab.Products"
+                            ShowCancel="true"
+                            IsSubmitting="isSubmitting" />
 }
 
 @if (activeTab == Tab.AdjustStock)
@@ -288,155 +150,22 @@
         <button class="btn btn-sm btn-outline-secondary" @onclick="() => activeTab = Tab.Products">← Back</button>
     </div>
 
-    <div class="row">
-        <div class="col-md-6">
-            <div class="card mb-3">
-                <div class="card-header bg-light">
-                    <strong>Stock by Location</strong>
-                    <span class="badge bg-primary float-end">Total: @locationStocks.Sum(s => s.Quantity)</span>
-                </div>
-                <div class="card-body p-0">
-                    @if (isLoadingStock)
-                    {
-                        <div class="p-3 text-muted">Loading...</div>
-                    }
-                    else if (locationStocks.Count == 0)
-                    {
-                        <div class="p-3 text-muted">No stock assigned to any location yet.</div>
-                    }
-                    else
-                    {
-                        <table class="table table-sm mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Location</th>
-                                    <th class="text-end">Qty</th>
-                                    <th class="text-center">Status</th>
-                                    <th></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var stock in locationStocks)
-                                {
-                                    <tr class="@(stock.IsLowStock ? "table-warning" : "")">
-                                        <td>📍 @stock.LocationName</td>
-                                        <td class="text-end fw-bold">@stock.Quantity</td>
-                                        <td class="text-center">
-                                            @if (stock.IsLowStock)
-                                            {
-                                                <span class="badge bg-warning text-dark">Low</span>
-                                            }
-                                            else
-                                            {
-                                                <span class="badge bg-success">OK</span>
-                                            }
-                                        </td>
-                                        <td class="text-end">
-                                            <button class="btn btn-sm btn-outline-primary py-0"
-                                                    @onclick="() => SelectStockLocation(stock.LocationId, stock.LocationName, stock.Quantity)">
-                                                Adjust
-                                            </button>
-                                        </td>
-                                    </tr>
-                                }
-                                @foreach (var loc in locations.Where(l => !locationStocks.Any(s => s.LocationId == l.Id)))
-                                {
-                                    <tr class="text-muted">
-                                        <td>📍 @loc.Name</td>
-                                        <td class="text-end">0</td>
-                                        <td class="text-center"><span class="badge bg-secondary">None</span></td>
-                                        <td class="text-end">
-                                            <button class="btn btn-sm btn-outline-primary py-0"
-                                                    @onclick="() => SelectStockLocation(loc.Id, loc.Name, 0)">
-                                                Adjust
-                                            </button>
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    }
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header bg-light">
-                    <strong>Adjust Stock</strong>
-                </div>
-                <div class="card-body">
-                    @if (stockLocationId == Guid.Empty)
-                    {
-                        <div class="text-muted text-center py-3">
-                            ← Select a location to adjust
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="alert alert-light border mb-3 py-2">
-                            📍 <strong>@stockLocationName</strong> — Current: <strong>@stockCurrentQuantity</strong> units
-                        </div>
-
-                        <div class="row g-3 align-items-end mb-3">
-                            <div class="col">
-                                <label class="form-label">Quantity to add/remove</label>
-                                <input type="number" class="form-control" @bind="stockAdjustQuantity" />
-                            </div>
-                            <div class="col-auto">
-                                <button class="btn btn-success" disabled="@isSubmitting" @onclick="() => ApplyStockAdjustAsync(stockAdjustQuantity)">Apply</button>
-                            </div>
-                        </div>
-
-                        <div class="d-flex gap-1 flex-wrap">
-                            <button class="btn btn-outline-success btn-sm" disabled="@isSubmitting" @onclick="() => QuickAdjustAsync(1)">+1</button>
-                            <button class="btn btn-outline-success btn-sm" disabled="@isSubmitting" @onclick="() => QuickAdjustAsync(5)">+5</button>
-                            <button class="btn btn-outline-success btn-sm" disabled="@isSubmitting" @onclick="() => QuickAdjustAsync(10)">+10</button>
-                            <button class="btn btn-outline-success btn-sm" disabled="@isSubmitting" @onclick="() => QuickAdjustAsync(50)">+50</button>
-                            <button class="btn btn-outline-danger btn-sm" disabled="@isSubmitting" @onclick="() => QuickAdjustAsync(-1)">-1</button>
-                            <button class="btn btn-outline-danger btn-sm" disabled="@isSubmitting" @onclick="() => QuickAdjustAsync(-5)">-5</button>
-                            <button class="btn btn-outline-danger btn-sm" disabled="@isSubmitting" @onclick="() => QuickAdjustAsync(-10)">-10</button>
-                            <button class="btn btn-outline-danger btn-sm" disabled="@isSubmitting" @onclick="() => QuickAdjustAsync(-50)">-50</button>
-                        </div>
-                    }
-                </div>
-            </div>
-        </div>
-    </div>
+    <StockAdjustPanel LocationStocks="locationStocks"
+                                  UnassignedLocations="UnassignedLocations"
+                                  SelectedLocationStock="selectedLocationStock"
+                                  OnSelectLocation="HandleSelectLocation"
+                                  @bind-AdjustQuantity="stockAdjustQuantity"
+                                  OnApplyAdjust="() => ApplyStockAdjustAsync(stockAdjustQuantity)"
+                                  OnQuickAdjust="QuickAdjustAsync"
+                                  IsSubmitting="isSubmitting"
+                                  IsLoading="isLoadingStock" />
 }
 
 @if (activeTab == Tab.AddProvider)
 {
-    <EditForm Model="providerModel" OnValidSubmit="CreateProviderAsync" class="mb-4">
-        <DataAnnotationsValidator />
-        <ValidationSummary />
-
-        <div class="row g-3">
-            <div class="col-md-6">
-                <label class="form-label">Name</label>
-                <InputText class="form-control" @bind-Value="providerModel.Name" />
-            </div>
-            <div class="col-md-6">
-                <label class="form-label">Contact Name</label>
-                <InputText class="form-control" @bind-Value="providerModel.ContactName" />
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Phone</label>
-                <InputText class="form-control" @bind-Value="providerModel.Phone" />
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Email</label>
-                <InputText class="form-control" @bind-Value="providerModel.Email" />
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">Address</label>
-                <InputText class="form-control" @bind-Value="providerModel.Address" />
-            </div>
-            <div class="col-md-12">
-                <button class="btn btn-primary" type="submit" disabled="@isSubmitting">Create Provider</button>
-            </div>
-        </div>
-    </EditForm>
+    <ProviderForm Model="providerModel"
+                              OnValidSubmit="CreateProviderAsync"
+                              IsSubmitting="isSubmitting" />
 }
 
 @code {
@@ -466,6 +195,11 @@
     private bool isLoadingStock;
     private CancellationTokenSource? realtimeRefreshDebounceCts;
     private readonly TimeSpan realtimeRefreshDebounceDelay = TimeSpan.FromMilliseconds(300);
+
+    private LocationStockDto? selectedLocationStock;
+
+    private IReadOnlyList<LocationDto> UnassignedLocations =>
+        locations.Where(l => !locationStocks.Any(s => s.LocationId == l.Id)).ToList();
 
     protected override async Task OnInitializedAsync()
     {
@@ -515,6 +249,7 @@
         stockAdjustQuantity = 0;
         stockLocationId = Guid.Empty;
         stockLocationName = string.Empty;
+        selectedLocationStock = null;
         activeTab = Tab.AdjustStock;
 
         await LoadLocationStocksAsync();
@@ -525,15 +260,7 @@
         isLoadingStock = true;
         locationStocks.Clear();
 
-        foreach (var loc in locations)
-        {
-            var stocks = await InventoryApi.GetLocationStockAsync(loc.Id);
-            var match = stocks.FirstOrDefault(s => s.ProductId == stockProductId);
-            if (match is not null)
-            {
-                locationStocks.Add(match);
-            }
-        }
+        locationStocks.AddRange(await InventoryApi.GetProductStockAsync(stockProductId));
 
         isLoadingStock = false;
     }
@@ -544,6 +271,16 @@
         stockLocationName = locationName;
         stockCurrentQuantity = currentQty;
         stockAdjustQuantity = 0;
+        selectedLocationStock = new LocationStockDto(Guid.Empty, locationId, locationName, stockProductId, stockProductName, currentQty, 0, false);
+    }
+
+    private void HandleSelectLocation(LocationStockDto stock)
+    {
+        stockLocationId = stock.LocationId;
+        stockLocationName = stock.LocationName;
+        stockCurrentQuantity = stock.Quantity;
+        stockAdjustQuantity = 0;
+        selectedLocationStock = stock;
     }
 
     private async Task UpdateProductAsync()
@@ -566,7 +303,8 @@
         {
             statusMessage = $"Product '{updated.Name}' updated.";
             statusCss = "alert-success";
-            await LoadDataAsync();
+            var index = products.FindIndex(p => p.Id == updated.Id);
+            if (index >= 0) products[index] = updated;
             activeTab = Tab.Products;
         }
         else
@@ -590,9 +328,9 @@
         {
             stockCurrentQuantity = result.Quantity;
             stockAdjustQuantity = 0;
+            selectedLocationStock = result;
             statusMessage = $"Stock for '{stockProductName}' at {stockLocationName} adjusted by {(quantity >= 0 ? "+" : "")}{quantity}. New stock: {result.Quantity}.";
             statusCss = "alert-success";
-            await LoadDataAsync();
             await LoadLocationStocksAsync();
         }
         else
@@ -631,7 +369,7 @@
             statusMessage = $"Product '{created.Name}' created.";
             statusCss = "alert-success";
             productModel.Reset();
-            await LoadDataAsync();
+            products.Add(created);
             activeTab = Tab.Products;
         }
         else
@@ -661,7 +399,7 @@
             statusMessage = $"Provider '{created.Name}' created.";
             statusCss = "alert-success";
             providerModel.Reset();
-            await LoadDataAsync();
+            providers.Add(created);
             activeTab = Tab.Providers;
         }
         else
@@ -713,6 +451,7 @@
                     if (selectedStock is not null)
                     {
                         stockCurrentQuantity = selectedStock.Quantity;
+                        selectedLocationStock = selectedStock;
                     }
                 }
 
@@ -735,7 +474,19 @@
 
     private enum Tab { Products, LowStock, Providers, AddProduct, AddProvider, EditProduct, AdjustStock }
 
-    private sealed class CreateProductModel
+    public interface IProductFormModel
+    {
+        string Barcode { get; set; }
+        string Name { get; set; }
+        string Description { get; set; }
+        string Category { get; set; }
+        decimal CostPrice { get; set; }
+        decimal SalePrice { get; set; }
+        int ReorderLevel { get; set; }
+        Guid ProviderId { get; set; }
+    }
+
+    public sealed class CreateProductModel : IProductFormModel
     {
         [Required] [StringLength(100)]
         public string Barcode { get; set; } = string.Empty;
@@ -774,7 +525,7 @@
         }
     }
 
-    private sealed class EditProductModel
+    public sealed class EditProductModel : IProductFormModel
     {
         public Guid Id { get; set; }
 
@@ -803,7 +554,7 @@
         public Guid ProviderId { get; set; }
     }
 
-    private sealed class CreateProviderModel
+    public sealed class CreateProviderModel
     {
         [Required] [StringLength(200)]
         public string Name { get; set; } = string.Empty;

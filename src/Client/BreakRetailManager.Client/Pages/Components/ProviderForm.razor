@@ -1,0 +1,40 @@
+@using static BreakRetailManager.Client.Pages.Inventory
+
+<EditForm Model="Model" OnValidSubmit="OnValidSubmit" class="mb-4">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="row g-3">
+        <div class="col-md-6">
+            <label class="form-label">Name</label>
+            <InputText class="form-control" @bind-Value="FormModel.Name" />
+        </div>
+        <div class="col-md-6">
+            <label class="form-label">Contact Name</label>
+            <InputText class="form-control" @bind-Value="FormModel.ContactName" />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Phone</label>
+            <InputText class="form-control" @bind-Value="FormModel.Phone" />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Email</label>
+            <InputText class="form-control" @bind-Value="FormModel.Email" />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Address</label>
+            <InputText class="form-control" @bind-Value="FormModel.Address" />
+        </div>
+        <div class="col-md-12">
+            <button class="btn btn-primary" type="submit" disabled="@IsSubmitting">Create Provider</button>
+        </div>
+    </div>
+</EditForm>
+
+@code {
+    [Parameter] public CreateProviderModel Model { get; set; } = default!;
+    [Parameter] public EventCallback OnValidSubmit { get; set; }
+    [Parameter] public bool IsSubmitting { get; set; }
+
+    private CreateProviderModel FormModel => Model;
+}
