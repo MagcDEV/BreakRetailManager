@@ -55,6 +55,8 @@ namespace BreakRetailManager.Sales.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("IsActive");
+
                     b.ToTable("Offers", "sales");
                 });
 
@@ -106,6 +108,11 @@ namespace BreakRetailManager.Sales.Infrastructure.Data.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt")
+                        .IsDescending();
+
+                    b.HasIndex("LocationId");
 
                     b.ToTable("SalesOrders", "sales");
                 });

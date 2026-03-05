@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BreakRetailManager.Inventory.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(InventoryDbContext))]
-    [Migration("20260305134544_AddProductIdIndex")]
-    partial class AddProductIdIndex
+    [Migration("20260305141822_DropProductStockQuantity")]
+    partial class DropProductStockQuantity
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -131,9 +131,6 @@ namespace BreakRetailManager.Inventory.Infrastructure.Data.Migrations
 
                     b.Property<decimal>("SalePrice")
                         .HasColumnType("decimal(18,2)");
-
-                    b.Property<int>("StockQuantity")
-                        .HasColumnType("int");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("datetimeoffset");

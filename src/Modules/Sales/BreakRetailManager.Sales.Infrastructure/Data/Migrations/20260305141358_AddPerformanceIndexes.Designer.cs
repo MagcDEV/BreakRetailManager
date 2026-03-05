@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BreakRetailManager.Sales.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(SalesDbContext))]
-    [Migration("20260305134532_AddPerformanceIndexes")]
+    [Migration("20260305141358_AddPerformanceIndexes")]
     partial class AddPerformanceIndexes
     {
         /// <inheritdoc />
@@ -57,6 +57,8 @@ namespace BreakRetailManager.Sales.Infrastructure.Data.Migrations
                         .HasColumnType("datetimeoffset");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("IsActive");
 
                     b.ToTable("Offers", "sales");
                 });
@@ -109,6 +111,11 @@ namespace BreakRetailManager.Sales.Infrastructure.Data.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt")
+                        .IsDescending();
+
+                    b.HasIndex("LocationId");
 
                     b.ToTable("SalesOrders", "sales");
                 });
