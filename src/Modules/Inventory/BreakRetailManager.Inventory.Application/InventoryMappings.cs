@@ -14,9 +14,9 @@ public static class InventoryMappings
             product.Category,
             product.CostPrice,
             product.SalePrice,
-            product.StockQuantity,
+            0,
             product.ReorderLevel,
-            product.IsLowStock,
+            false,
             product.ProviderId,
             product.Provider?.Name ?? string.Empty,
             product.CreatedAt,
@@ -59,7 +59,6 @@ public static class InventoryMappings
             request.Category,
             request.CostPrice,
             request.SalePrice,
-            0,
             request.ReorderLevel,
             request.ProviderId);
 

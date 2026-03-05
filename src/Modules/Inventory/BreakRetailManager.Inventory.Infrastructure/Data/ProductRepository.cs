@@ -54,14 +54,21 @@ public sealed class ProductRepository : IProductRepository
             .FirstOrDefaultAsync(product => product.Barcode == barcode, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<Product>> GetLowStockAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<(Product Product, int StockTotal)>> GetLowStockWithTotalsAsync(CancellationToken cancellationToken = default)
     {
-        return await _dbContext.Products
-            .AsNoTracking()
-            .Include(product => product.Provider)
-            .Where(product => product.StockQuantity <= product.ReorderLevel)
-            .OrderBy(product => product.StockQuantity)
-            .ToListAsync(cancellationToken);
+        var query = from product in _dbContext.Products.AsNoTracking().Include(p => p.Provider)
+                    join stockGroup in _dbContext.Set<LocationStock>()
+                        .GroupBy(s => s.ProductId)
+                        .Select(g => new { ProductId = g.Key, Total = g.Sum(s => s.Quantity) })
+                    on product.Id equals stockGroup.ProductId into stockJoin
+                    from stock in stockJoin.DefaultIfEmpty()
+                    let total = stock != null ? stock.Total : 0
+                    where total <= product.ReorderLevel
+                    orderby total
+                    select new { Product = product, StockTotal = total };
+
+        var results = await query.ToListAsync(cancellationToken);
+        return results.Select(r => (r.Product, r.StockTotal)).ToList();
     }
 
     public async Task AddAsync(Product product, CancellationToken cancellationToken = default)

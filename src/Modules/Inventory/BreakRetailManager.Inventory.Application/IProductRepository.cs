@@ -12,7 +12,7 @@ public interface IProductRepository
 
     Task<Product?> GetByBarcodeAsync(string barcode, CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<Product>> GetLowStockAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<(Product Product, int StockTotal)>> GetLowStockWithTotalsAsync(CancellationToken cancellationToken = default);
 
     Task AddAsync(Product product, CancellationToken cancellationToken = default);
 

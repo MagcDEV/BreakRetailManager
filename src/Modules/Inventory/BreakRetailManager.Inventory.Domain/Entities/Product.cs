@@ -13,7 +13,6 @@ public sealed class Product
         string category,
         decimal costPrice,
         decimal salePrice,
-        int stockQuantity,
         int reorderLevel,
         Guid providerId)
     {
@@ -37,11 +36,6 @@ public sealed class Product
             throw new ArgumentException("Sale price cannot be negative.", nameof(salePrice));
         }
 
-        if (stockQuantity < 0)
-        {
-            throw new ArgumentException("Stock quantity cannot be negative.", nameof(stockQuantity));
-        }
-
         if (reorderLevel < 0)
         {
             throw new ArgumentException("Reorder level cannot be negative.", nameof(reorderLevel));
@@ -54,7 +48,6 @@ public sealed class Product
         Category = category;
         CostPrice = costPrice;
         SalePrice = salePrice;
-        StockQuantity = stockQuantity;
         ReorderLevel = reorderLevel;
         ProviderId = providerId;
         CreatedAt = DateTimeOffset.UtcNow;
@@ -75,8 +68,6 @@ public sealed class Product
 
     public decimal SalePrice { get; private set; }
 
-    public int StockQuantity { get; private set; }
-
     public int ReorderLevel { get; private set; }
 
     public Guid ProviderId { get; private set; }
@@ -88,8 +79,6 @@ public sealed class Product
     public DateTimeOffset UpdatedAt { get; private set; }
 
     public bool IsActive { get; private set; } = true;
-
-    public bool IsLowStock => StockQuantity <= ReorderLevel;
 
     public void UpdateDetails(
         string barcode,
@@ -134,17 +123,6 @@ public sealed class Product
         SalePrice = salePrice;
         ReorderLevel = reorderLevel;
         ProviderId = providerId;
-        UpdatedAt = DateTimeOffset.UtcNow;
-    }
-
-    public void SetStockQuantity(int total)
-    {
-        if (total < 0)
-        {
-            throw new ArgumentException("Stock quantity cannot be negative.", nameof(total));
-        }
-
-        StockQuantity = total;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 

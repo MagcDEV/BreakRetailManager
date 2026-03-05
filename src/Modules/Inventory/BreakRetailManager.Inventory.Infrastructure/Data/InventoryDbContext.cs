@@ -44,12 +44,10 @@ public sealed class InventoryDbContext : DbContext
             product.Property(entity => entity.Category).HasMaxLength(100);
             product.Property(entity => entity.CostPrice).HasColumnType("decimal(18,2)").IsRequired();
             product.Property(entity => entity.SalePrice).HasColumnType("decimal(18,2)").IsRequired();
-            product.Property(entity => entity.StockQuantity).IsRequired();
             product.Property(entity => entity.ReorderLevel).IsRequired();
             product.Property(entity => entity.CreatedAt).IsRequired();
             product.Property(entity => entity.UpdatedAt).IsRequired();
             product.Property(entity => entity.IsActive).IsRequired().HasDefaultValue(true);
-            product.Ignore(entity => entity.IsLowStock);
 
             product.HasOne(entity => entity.Provider)
                 .WithMany()
@@ -72,6 +70,7 @@ public sealed class InventoryDbContext : DbContext
             stock.ToTable("LocationStocks", "inventory");
             stock.HasKey(e => e.Id);
             stock.HasIndex(e => new { e.LocationId, e.ProductId }).IsUnique();
+            stock.HasIndex(e => e.ProductId);
             stock.Property(e => e.Quantity).IsRequired();
             stock.Property(e => e.ReorderLevel).IsRequired();
             stock.Property(e => e.RowVersion).IsRowVersion();

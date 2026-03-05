@@ -2,7 +2,6 @@ using BreakRetailManager.BuildingBlocks.Inventory;
 using BreakRetailManager.BuildingBlocks.Realtime;
 using BreakRetailManager.Inventory.Application;
 using BreakRetailManager.Inventory.Contracts;
-using BreakRetailManager.Inventory.Domain.Entities;
 using BreakRetailManager.Inventory.Infrastructure.Data;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -12,7 +11,6 @@ namespace BreakRetailManager.Inventory.Infrastructure;
 public sealed class InventoryStockService : IInventoryStockService
 {
     private readonly InventoryDbContext _dbContext;
-    private readonly IProductRepository _productRepository;
     private readonly ILocationStockRepository _locationStockRepository;
     private readonly IHubContext<InventoryHub> _hubContext;
 
@@ -20,12 +18,10 @@ public sealed class InventoryStockService : IInventoryStockService
 
     public InventoryStockService(
         InventoryDbContext dbContext,
-        IProductRepository productRepository,
         ILocationStockRepository locationStockRepository,
         IHubContext<InventoryHub> hubContext)
     {
         _dbContext = dbContext;
-        _productRepository = productRepository;
         _locationStockRepository = locationStockRepository;
         _hubContext = hubContext;
     }
@@ -39,63 +35,54 @@ public sealed class InventoryStockService : IInventoryStockService
 
         var events = new List<InventoryStockChangedEvent>(items.Count);
 
-        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
-
-        foreach (var item in items)
-        {
-            var stock = await DecrementSingleItemAsync(locationId, item.ProductId, item.Quantity, cancellationToken);
-            events.Add(new InventoryStockChangedEvent(
-                stock.ProductId, stock.LocationId, stock.Quantity, DateTimeOffset.UtcNow));
-        }
-
-        await transaction.CommitAsync(cancellationToken);
-
-        // Broadcast SignalR events after successful commit
-        foreach (var evt in events)
-        {
-            await _hubContext.Clients.All.SendAsync(
-                InventoryHub.StockChangedMethod, evt, cancellationToken);
-        }
-    }
-
-    private async Task<LocationStock> DecrementSingleItemAsync(
-        Guid locationId, Guid productId, int quantity, CancellationToken cancellationToken)
-    {
         for (var attempt = 0; attempt <= MaxRetries; attempt++)
         {
             try
             {
-                var stock = await _locationStockRepository.GetAsync(locationId, productId, cancellationToken);
+                await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
 
-                if (stock is null)
+                var productIds = items.Select(i => i.ProductId).Distinct().ToList();
+
+                // Batch-read all required LocationStock rows
+                var stocks = await _locationStockRepository.GetByLocationAndProductsAsync(
+                    locationId, productIds, cancellationToken);
+                var stockMap = stocks.ToDictionary(s => s.ProductId);
+
+                // Apply all mutations in memory
+                events.Clear();
+                foreach (var item in items)
                 {
-                    throw new InvalidOperationException(
-                        $"No stock record exists for product {productId} at location {locationId}.");
+                    if (!stockMap.TryGetValue(item.ProductId, out var stock))
+                    {
+                        throw new InvalidOperationException(
+                            $"No stock record exists for product {item.ProductId} at location {locationId}.");
+                    }
+
+                    stock.UpdateQuantity(-item.Quantity);
+
+                    events.Add(new InventoryStockChangedEvent(
+                        stock.ProductId, stock.LocationId, stock.Quantity, DateTimeOffset.UtcNow));
                 }
 
-                stock.UpdateQuantity(-quantity);
-
-                // Recompute global aggregate from DB
-                var total = await _locationStockRepository.GetTotalForProductAsync(productId, cancellationToken);
-                total -= quantity; // Adjust for in-flight delta
-
-                var product = await _productRepository.GetByIdAsync(productId, cancellationToken);
-                product?.SetStockQuantity(total);
-
                 await _dbContext.SaveChangesAsync(cancellationToken);
-                return stock;
+                await transaction.CommitAsync(cancellationToken);
+                break;
             }
             catch (DbUpdateConcurrencyException) when (attempt < MaxRetries)
             {
-                // Detach tracked entities so the next iteration gets fresh data
                 foreach (var entry in _dbContext.ChangeTracker.Entries())
                 {
                     entry.State = EntityState.Detached;
                 }
+                events.Clear();
             }
         }
 
-        throw new InvalidOperationException(
-            $"Failed to decrement stock for product {productId} after {MaxRetries} retries due to concurrent updates.");
+        // Broadcast SignalR events after successful commit
+        foreach (var evt in events)
+        {
+            await _hubContext.Clients.Group(evt.LocationId.ToString()).SendAsync(
+                InventoryHub.StockChangedMethod, evt, cancellationToken);
+        }
     }
 }
