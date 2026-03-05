@@ -88,3 +88,14 @@ window.breakRetailDb = (() => {
         isOnline: () => navigator.onLine
     };
 })();
+
+window.breakRetailConnectivity = {
+    register: function (dotNetRef) {
+        window.addEventListener('online', function () {
+            dotNetRef.invokeMethodAsync('OnConnectivityChanged', true);
+        });
+        window.addEventListener('offline', function () {
+            dotNetRef.invokeMethodAsync('OnConnectivityChanged', false);
+        });
+    }
+};

@@ -73,6 +73,22 @@ public sealed class InventoryRealtimeClient : IAsyncDisposable
         }
     }
 
+    public async Task JoinLocationGroupAsync(Guid locationId, CancellationToken cancellationToken = default)
+    {
+        if (_connection?.State == HubConnectionState.Connected)
+        {
+            await _connection.InvokeAsync("JoinLocationGroup", locationId, cancellationToken);
+        }
+    }
+
+    public async Task LeaveLocationGroupAsync(Guid locationId, CancellationToken cancellationToken = default)
+    {
+        if (_connection?.State == HubConnectionState.Connected)
+        {
+            await _connection.InvokeAsync("LeaveLocationGroup", locationId, cancellationToken);
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (_connection is null)

@@ -13,6 +13,19 @@ public sealed class InventoryApiClient
     private readonly HttpClient _httpClient;
     private readonly ILogger<InventoryApiClient> _logger;
 
+    private CacheEntry<IReadOnlyList<ProductDto>>? _productsCache;
+    private CacheEntry<IReadOnlyList<ProviderDto>>? _providersCache;
+    private CacheEntry<IReadOnlyList<LocationDto>>? _locationsCache;
+
+    private static readonly TimeSpan ProductsCacheTtl = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan ProvidersCacheTtl = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan LocationsCacheTtl = TimeSpan.FromSeconds(60);
+
+    private sealed record CacheEntry<T>(T Data, DateTime ExpiresAt)
+    {
+        public bool IsValid => DateTime.UtcNow < ExpiresAt;
+    }
+
     public InventoryApiClient(HttpClient httpClient, ILogger<InventoryApiClient> logger)
     {
         _httpClient = httpClient;
@@ -21,15 +34,22 @@ public sealed class InventoryApiClient
 
     public async Task<IReadOnlyList<ProductDto>> GetProductsAsync(CancellationToken cancellationToken = default)
     {
+        if (_productsCache is { IsValid: true })
+        {
+            return _productsCache.Data;
+        }
+
         try
         {
-            return await _httpClient.GetFromJsonAsync<List<ProductDto>>(ProductsEndpoint, cancellationToken)
+            var products = await _httpClient.GetFromJsonAsync<List<ProductDto>>(ProductsEndpoint, cancellationToken)
                 ?? [];
+            _productsCache = new CacheEntry<IReadOnlyList<ProductDto>>(products, DateTime.UtcNow.Add(ProductsCacheTtl));
+            return products;
         }
         catch (HttpRequestException exception)
         {
             _logger.LogWarning(exception, "Failed to fetch products.");
-            return [];
+            return _productsCache?.Data ?? [];
         }
     }
 
@@ -49,6 +69,7 @@ public sealed class InventoryApiClient
 
     public async Task<ProductDto?> CreateProductAsync(CreateProductRequest request, CancellationToken cancellationToken = default)
     {
+        _productsCache = null;
         try
         {
             var response = await _httpClient.PostAsJsonAsync(ProductsEndpoint, request, cancellationToken);
@@ -64,6 +85,7 @@ public sealed class InventoryApiClient
 
     public async Task<ProductDto?> UpdateProductAsync(Guid id, UpdateProductRequest request, CancellationToken cancellationToken = default)
     {
+        _productsCache = null;
         try
         {
             var response = await _httpClient.PutAsJsonAsync($"{ProductsEndpoint}/{id}", request, cancellationToken);
@@ -79,20 +101,28 @@ public sealed class InventoryApiClient
 
     public async Task<IReadOnlyList<ProviderDto>> GetProvidersAsync(CancellationToken cancellationToken = default)
     {
+        if (_providersCache is { IsValid: true })
+        {
+            return _providersCache.Data;
+        }
+
         try
         {
-            return await _httpClient.GetFromJsonAsync<List<ProviderDto>>(ProvidersEndpoint, cancellationToken)
+            var providers = await _httpClient.GetFromJsonAsync<List<ProviderDto>>(ProvidersEndpoint, cancellationToken)
                 ?? [];
+            _providersCache = new CacheEntry<IReadOnlyList<ProviderDto>>(providers, DateTime.UtcNow.Add(ProvidersCacheTtl));
+            return providers;
         }
         catch (HttpRequestException exception)
         {
             _logger.LogWarning(exception, "Failed to fetch providers.");
-            return [];
+            return _providersCache?.Data ?? [];
         }
     }
 
     public async Task<ProviderDto?> CreateProviderAsync(CreateProviderRequest request, CancellationToken cancellationToken = default)
     {
+        _providersCache = null;
         try
         {
             var response = await _httpClient.PostAsJsonAsync(ProvidersEndpoint, request, cancellationToken);
@@ -108,6 +138,7 @@ public sealed class InventoryApiClient
 
     public async Task<ProviderDto?> UpdateProviderAsync(Guid id, UpdateProviderRequest request, CancellationToken cancellationToken = default)
     {
+        _providersCache = null;
         try
         {
             var response = await _httpClient.PutAsJsonAsync($"{ProvidersEndpoint}/{id}", request, cancellationToken);
@@ -135,15 +166,22 @@ public sealed class InventoryApiClient
 
     public async Task<IReadOnlyList<LocationDto>> GetLocationsAsync(CancellationToken cancellationToken = default)
     {
+        if (_locationsCache is { IsValid: true })
+        {
+            return _locationsCache.Data;
+        }
+
         try
         {
-            return await _httpClient.GetFromJsonAsync<List<LocationDto>>(LocationsEndpoint, cancellationToken)
+            var locations = await _httpClient.GetFromJsonAsync<List<LocationDto>>(LocationsEndpoint, cancellationToken)
                    ?? [];
+            _locationsCache = new CacheEntry<IReadOnlyList<LocationDto>>(locations, DateTime.UtcNow.Add(LocationsCacheTtl));
+            return locations;
         }
         catch (HttpRequestException ex)
         {
             _logger.LogWarning(ex, "Failed to fetch locations.");
-            return [];
+            return _locationsCache?.Data ?? [];
         }
     }
 
@@ -157,6 +195,20 @@ public sealed class InventoryApiClient
         catch (HttpRequestException ex)
         {
             _logger.LogWarning(ex, "Failed to fetch stock for location {LocationId}.", locationId);
+            return [];
+        }
+    }
+
+    public async Task<IReadOnlyList<LocationStockDto>> GetProductStockAsync(Guid productId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await _httpClient.GetFromJsonAsync<List<LocationStockDto>>($"{ProductsEndpoint}/{productId}/stock", cancellationToken)
+                   ?? [];
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogWarning(ex, "Failed to fetch stock for product {ProductId}.", productId);
             return [];
         }
     }

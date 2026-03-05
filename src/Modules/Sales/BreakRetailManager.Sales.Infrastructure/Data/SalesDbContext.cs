@@ -26,6 +26,8 @@ public sealed class SalesDbContext : DbContext
             order.Property(entity => entity.CreatedByDisplayName).HasMaxLength(256);
             order.Property(entity => entity.PaymentMethod).IsRequired();
             order.Property(entity => entity.LocationId).IsRequired();
+            order.HasIndex(entity => entity.CreatedAt).IsDescending();
+            order.HasIndex(entity => entity.LocationId);
             order.Property(entity => entity.DiscountTotal).HasColumnType("decimal(18,2)").IsRequired();
             order.Property(entity => entity.Cae).HasMaxLength(20);
             order.Property(entity => entity.CaeExpirationDate);
@@ -56,6 +58,7 @@ public sealed class SalesDbContext : DbContext
             offer.Property(entity => entity.DiscountType).IsRequired();
             offer.Property(entity => entity.DiscountValue).HasColumnType("decimal(18,2)").IsRequired();
             offer.Property(entity => entity.IsActive).IsRequired();
+            offer.HasIndex(entity => entity.IsActive);
             offer.Property(entity => entity.CreatedAt).IsRequired();
             offer.Property(entity => entity.UpdatedAt).IsRequired();
 

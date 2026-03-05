@@ -17,6 +17,7 @@ public sealed class OfferRepository : IOfferRepository
     {
         return await _dbContext.Offers
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(offer => offer.Requirements)
             .OrderByDescending(offer => offer.CreatedAt)
             .ToListAsync(cancellationToken);
@@ -26,6 +27,7 @@ public sealed class OfferRepository : IOfferRepository
     {
         return await _dbContext.Offers
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(offer => offer.Requirements)
             .Where(offer => offer.IsActive)
             .OrderBy(offer => offer.CreatedAt)

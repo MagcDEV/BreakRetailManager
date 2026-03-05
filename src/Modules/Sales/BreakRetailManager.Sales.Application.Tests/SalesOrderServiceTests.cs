@@ -182,6 +182,18 @@ public sealed class SalesOrderServiceTests
             return Task.CompletedTask;
         }
 
+        public Task<(IReadOnlyList<SalesOrder> Items, int TotalCount)> GetPagedAsync(
+            int page, int pageSize, CancellationToken cancellationToken = default)
+        {
+            var totalCount = _orders.Count;
+            var items = _orders
+                .OrderByDescending(o => o.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+            return Task.FromResult<(IReadOnlyList<SalesOrder> Items, int TotalCount)>((items, totalCount));
+        }
+
         public Task SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;

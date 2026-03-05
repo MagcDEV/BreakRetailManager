@@ -63,7 +63,8 @@ public sealed class InventoryModule : IModule
             return Results.Ok(await service.GetProductsAsync(cancellationToken));
         })
             .Produces<PagedResult<ProductDto>>()
-            .Produces<IReadOnlyList<ProductDto>>();
+            .Produces<IReadOnlyList<ProductDto>>()
+            .CacheOutput("Short");
 
         managerGroup.MapGet("/products/low-stock", async (ProductService service, CancellationToken cancellationToken) =>
             Results.Ok(await service.GetLowStockProductsAsync(cancellationToken)))
@@ -81,6 +82,11 @@ public sealed class InventoryModule : IModule
             return product is null ? Results.NotFound() : Results.Ok(product);
         }).Produces<ProductDto>()
           .RequireAuthorization("Cashier");
+
+        group.MapGet("/products/{productId:guid}/stock", async (Guid productId, ProductService service, CancellationToken cancellationToken) =>
+            Results.Ok(await service.GetStockByProductAsync(productId, cancellationToken)))
+            .Produces<IReadOnlyList<LocationStockDto>>()
+            .RequireAuthorization("Cashier");
 
         managerGroup.MapPost("/products", async (CreateProductRequest request, ProductService service, CancellationToken cancellationToken) =>
         {
@@ -108,7 +114,8 @@ public sealed class InventoryModule : IModule
             return Results.Ok(await service.GetProvidersAsync(cancellationToken));
         })
             .Produces<PagedResult<ProviderDto>>()
-            .Produces<IReadOnlyList<ProviderDto>>();
+            .Produces<IReadOnlyList<ProviderDto>>()
+            .CacheOutput("Medium");
 
         managerGroup.MapGet("/providers/{id:guid}", async (Guid id, ProviderService service, CancellationToken cancellationToken) =>
         {
@@ -133,6 +140,7 @@ public sealed class InventoryModule : IModule
         group.MapGet("/locations", async (LocationService service, CancellationToken cancellationToken) =>
             Results.Ok(await service.GetLocationsAsync(cancellationToken)))
             .Produces<IReadOnlyList<LocationDto>>()
+            .CacheOutput("Medium")
             .RequireAuthorization("Cashier");
 
         managerGroup.MapGet("/locations/{id:guid}", async (Guid id, LocationService service, CancellationToken cancellationToken) =>
@@ -179,7 +187,7 @@ public sealed class InventoryModule : IModule
                     return Results.NotFound();
                 }
 
-                await hubContext.Clients.All.SendAsync(
+                await hubContext.Clients.Group(locationId.ToString()).SendAsync(
                     InventoryHub.StockChangedMethod,
                     new InventoryStockChangedEvent(stock.ProductId, stock.LocationId, stock.Quantity, DateTimeOffset.UtcNow),
                     cancellationToken);
@@ -212,7 +220,7 @@ public sealed class InventoryModule : IModule
                 return Results.NotFound();
             }
 
-            await hubContext.Clients.All.SendAsync(
+            await hubContext.Clients.Group(locationId.ToString()).SendAsync(
                 InventoryHub.StockChangedMethod,
                 new InventoryStockChangedEvent(stock.ProductId, stock.LocationId, stock.Quantity, DateTimeOffset.UtcNow),
                 cancellationToken);

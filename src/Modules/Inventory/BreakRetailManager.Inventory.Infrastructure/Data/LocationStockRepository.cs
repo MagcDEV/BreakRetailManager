@@ -16,6 +16,7 @@ public sealed class LocationStockRepository : ILocationStockRepository
     public async Task<LocationStock?> GetAsync(Guid locationId, Guid productId, CancellationToken cancellationToken = default)
     {
         return await _dbContext.LocationStocks
+            .AsSplitQuery()
             .Include(s => s.Location)
             .Include(s => s.Product)
             .FirstOrDefaultAsync(s => s.LocationId == locationId && s.ProductId == productId, cancellationToken);
@@ -25,6 +26,7 @@ public sealed class LocationStockRepository : ILocationStockRepository
     {
         return await _dbContext.LocationStocks
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(s => s.Location)
             .Include(s => s.Product)
             .Where(s => s.LocationId == locationId)
@@ -36,6 +38,7 @@ public sealed class LocationStockRepository : ILocationStockRepository
     {
         return await _dbContext.LocationStocks
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(s => s.Location)
             .Include(s => s.Product)
             .Where(s => s.ProductId == productId)
@@ -66,6 +69,16 @@ public sealed class LocationStockRepository : ILocationStockRepository
             .AsNoTracking()
             .Where(stock => stock.ProductId == productId)
             .SumAsync(stock => stock.Quantity, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<LocationStock>> GetByLocationAndProductsAsync(
+        Guid locationId,
+        IReadOnlyCollection<Guid> productIds,
+        CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.LocationStocks
+            .Where(s => s.LocationId == locationId && productIds.Contains(s.ProductId))
+            .ToListAsync(cancellationToken);
     }
 
     public async Task AddAsync(LocationStock stock, CancellationToken cancellationToken = default)

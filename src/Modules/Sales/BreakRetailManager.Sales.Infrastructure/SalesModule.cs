@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using BreakRetailManager.BuildingBlocks.Modules;
+using BreakRetailManager.BuildingBlocks.Pagination;
 using BreakRetailManager.Sales.Application;
 using BreakRetailManager.Sales.Contracts;
 using BreakRetailManager.Sales.Infrastructure.Arca;
@@ -60,8 +61,18 @@ public sealed class SalesModule : IModule
             .WithTags("Sales")
             .RequireAuthorization("Cashier");
 
-        group.MapGet("/orders", async (SalesOrderService service, CancellationToken cancellationToken) =>
-            Results.Ok(await service.GetOrdersAsync(cancellationToken)))
+        group.MapGet("/orders", async (int? page, int? pageSize, SalesOrderService service, CancellationToken cancellationToken) =>
+        {
+            if (page.HasValue || pageSize.HasValue)
+            {
+                var p = Math.Max(page ?? 1, 1);
+                var ps = Math.Clamp(pageSize ?? 25, 1, 100);
+                return Results.Ok(await service.GetOrdersPagedAsync(p, ps, cancellationToken));
+            }
+
+            return Results.Ok(await service.GetOrdersAsync(cancellationToken));
+        })
+            .Produces<PagedResult<SalesOrderDto>>()
             .Produces<IReadOnlyList<SalesOrderDto>>();
 
         group.MapPost(
@@ -120,7 +131,8 @@ public sealed class SalesModule : IModule
 
         group.MapGet("/offers/active", async (OfferService service, CancellationToken cancellationToken) =>
             Results.Ok(await service.GetActiveOffersAsync(cancellationToken)))
-            .Produces<IReadOnlyList<OfferDto>>();
+            .Produces<IReadOnlyList<OfferDto>>()
+            .CacheOutput("Short");
 
         group.MapGet("/offers/{id:guid}", async (Guid id, OfferService service, CancellationToken cancellationToken) =>
         {

@@ -16,6 +16,11 @@ public interface ILocationStockRepository
 
     Task<int> GetTotalForProductAsync(Guid productId, CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<LocationStock>> GetByLocationAndProductsAsync(
+        Guid locationId,
+        IReadOnlyCollection<Guid> productIds,
+        CancellationToken cancellationToken = default);
+
     Task AddAsync(LocationStock stock, CancellationToken cancellationToken = default);
 
     Task SaveChangesAsync(CancellationToken cancellationToken = default);

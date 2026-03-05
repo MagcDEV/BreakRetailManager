@@ -66,6 +66,7 @@ public sealed class UserManagementModule : IModule
         group.MapGet("/roles", async (UserService service, CancellationToken cancellationToken) =>
             Results.Ok(await service.GetAllRolesAsync(cancellationToken)))
             .Produces<IReadOnlyList<RoleDto>>()
+            .CacheOutput("Long")
             .RequireAuthorization("Admin");
 
         // Assign a role to a user — Admin only

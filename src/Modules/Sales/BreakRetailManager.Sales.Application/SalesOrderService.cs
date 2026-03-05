@@ -1,4 +1,5 @@
 using BreakRetailManager.BuildingBlocks.Inventory;
+using BreakRetailManager.BuildingBlocks.Pagination;
 using BreakRetailManager.Sales.Contracts;
 
 namespace BreakRetailManager.Sales.Application;
@@ -26,6 +27,14 @@ public sealed class SalesOrderService
     {
         var orders = await _repository.GetAllAsync(cancellationToken);
         return orders.Select(SalesMappings.ToDto).ToList();
+    }
+
+    public async Task<PagedResult<SalesOrderDto>> GetOrdersPagedAsync(
+        int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        var (orders, totalCount) = await _repository.GetPagedAsync(page, pageSize, cancellationToken);
+        var items = orders.Select(SalesMappings.ToDto).ToList();
+        return new PagedResult<SalesOrderDto>(items, totalCount, page, pageSize);
     }
 
     public async Task<SalesOrderDto> CreateOrderAsync(

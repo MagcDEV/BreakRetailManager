@@ -15,6 +15,19 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddOpenApi();
 builder.Services.AddSignalR();
 
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+});
+
+builder.Services.AddOutputCache(options =>
+{
+    options.AddBasePolicy(builder => builder.NoCache());
+    options.AddPolicy("Short", builder => builder.Expire(TimeSpan.FromSeconds(30)).Tag("short"));
+    options.AddPolicy("Medium", builder => builder.Expire(TimeSpan.FromSeconds(60)).Tag("medium"));
+    options.AddPolicy("Long", builder => builder.Expire(TimeSpan.FromSeconds(120)).Tag("long"));
+});
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
 
@@ -53,21 +66,23 @@ if (app.Environment.IsDevelopment())
     using var scope = app.Services.CreateScope();
 
     var salesDb = scope.ServiceProvider.GetRequiredService<SalesDbContext>();
-    await salesDb.Database.MigrateAsync();
-
     var usersDb = scope.ServiceProvider.GetRequiredService<UserManagementDbContext>();
-    await usersDb.Database.MigrateAsync();
-
     var inventoryDb = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
-    await inventoryDb.Database.MigrateAsync();
+
+    await Task.WhenAll(
+        salesDb.Database.MigrateAsync(),
+        usersDb.Database.MigrateAsync(),
+        inventoryDb.Database.MigrateAsync());
 }
 
 await UserManagementModule.SeedAsync(app.Services);
 
+app.UseResponseCompression();
 app.UseHttpsRedirection();
 app.UseCors("Client");
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseOutputCache();
 
 app.MapGet("/", () => Results.Ok(new { name = "BreakRetailManager API" }))
     .AllowAnonymous();
