@@ -29,4 +29,11 @@
     <Project Path="src/Modules/Inventory/BreakRetailManager.Inventory.Domain/BreakRetailManager.Inventory.Domain.csproj" />
     <Project Path="src/Modules/Inventory/BreakRetailManager.Inventory.Infrastructure/BreakRetailManager.Inventory.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/src/Modules/AccountsControl/">
+    <Project Path="src/Modules/AccountsControl/BreakRetailManager.AccountsControl.Application.Tests/BreakRetailManager.AccountsControl.Application.Tests.csproj" />
+    <Project Path="src/Modules/AccountsControl/BreakRetailManager.AccountsControl.Application/BreakRetailManager.AccountsControl.Application.csproj" />
+    <Project Path="src/Modules/AccountsControl/BreakRetailManager.AccountsControl.Contracts/BreakRetailManager.AccountsControl.Contracts.csproj" />
+    <Project Path="src/Modules/AccountsControl/BreakRetailManager.AccountsControl.Domain/BreakRetailManager.AccountsControl.Domain.csproj" />
+    <Project Path="src/Modules/AccountsControl/BreakRetailManager.AccountsControl.Infrastructure/BreakRetailManager.AccountsControl.Infrastructure.csproj" />
+  </Folder>
 </Solution>

@@ -1,0 +1,54 @@
+@using System.Globalization
+
+@if (Movements.Count == 0)
+{
+    <p class="text-muted">@EmptyMessage</p>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-sm align-middle">
+            <thead>
+            <tr>
+                @if (ShowAccountColumns)
+                {
+                    <th>Account</th>
+                    <th>Type</th>
+                }
+                <th>When</th>
+                <th>Description</th>
+                <th>Shift</th>
+                <th>Origin</th>
+                <th class="text-end">Amount</th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var movement in Movements)
+            {
+                <tr>
+                    @if (ShowAccountColumns)
+                    {
+                        <td>@movement.AccountName</td>
+                        <td>@movement.AccountType</td>
+                    }
+                    <td>@movement.CreatedAt.LocalDateTime.ToString("g")</td>
+                    <td>@movement.Description</td>
+                    <td>@(string.IsNullOrWhiteSpace(movement.Shift) ? "-" : movement.Shift)</td>
+                    <td>@movement.CreatedByRole</td>
+                    <td class="text-end fw-semibold @(movement.Amount < 0 ? "text-success" : "text-danger")">
+                        @movement.Amount.ToString("C", ArsCulture)
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private static readonly CultureInfo ArsCulture = new("es-AR");
+
+    [Parameter] public IReadOnlyList<MovementDto> Movements { get; set; } = [];
+    [Parameter] public bool ShowAccountColumns { get; set; }
+    [Parameter] public string EmptyMessage { get; set; } = "No movements yet.";
+}

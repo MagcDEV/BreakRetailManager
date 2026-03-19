@@ -9,7 +9,7 @@ Modular monolith sample with Clean Architecture on .NET 10 (ASP.NET Core) and a 
 
 ## Prerequisites
 - .NET 10 SDK
-- SQL Server LocalDB or Developer Edition (dev)
+- SQL Server LocalDB or Developer Edition (dev override), or access to the shared Azure SQL development database
 
 ## Configure Microsoft Entra ID
 1. Register an **API** app.
@@ -27,6 +27,10 @@ dotnet restore --ignore-failed-sources
 dotnet run --project src/Api/BreakRetailManager.Api
 dotnet run --project src/Client/BreakRetailManager.Client
 ```
+
+- The checked-in API development config points to Azure SQL with `Authentication=Active Directory Default`.
+- Before running the API against Azure SQL, sign in with `az login` or Visual Studio/VS Code and make sure your client IP is allowed on `brmsql42014`.
+- To use LocalDB instead, override `ConnectionStrings__DefaultConnection` with user secrets or an environment variable.
 
 ## Run tests
 ```bash

@@ -1,0 +1,159 @@
+@page "/accounts/expense/{AccountId:guid}"
+@using System.Globalization
+@inject AccountsControlApiClient AccountsApi
+
+<PageTitle>General Expense Account</PageTitle>
+
+<a class="btn btn-link px-0 mb-3" href="">Back to landing</a>
+<h1>General expense account</h1>
+
+@if (!string.IsNullOrWhiteSpace(statusMessage))
+{
+    <div class="alert @statusCss alert-dismissible" role="alert">
+        @statusMessage
+        <button type="button" class="btn-close" @onclick="() => statusMessage = null"></button>
+    </div>
+}
+
+@if (isLoading)
+{
+    <p><em>Loading account...</em></p>
+}
+else if (account is null)
+{
+    <div class="alert alert-warning" role="alert">
+        This expense account was not found or is no longer available.
+    </div>
+}
+else
+{
+    <div class="row g-4">
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-header bg-dark text-white">
+                    <strong>@account.Name</strong>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-2">Current expense balance</p>
+                    <div class="display-6 @(account.Balance > 0 ? "text-danger" : "text-success")">
+                        @account.Balance.ToString("C", ArsCulture)
+                    </div>
+                    <div class="small text-muted mt-3">
+                        <div>Movements: @account.MovementCount</div>
+                        <div>Last activity: @(account.LastActivityAt?.LocalDateTime.ToString("g") ?? "No activity yet")</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-8">
+            <div class="alert alert-warning" role="alert">
+                You can only add new positive expense entries for this account. Existing movements cannot be edited or deleted.
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-header">
+                    <strong>Register expense</strong>
+                </div>
+                <div class="card-body">
+                    <EditForm Model="formModel" OnValidSubmit="SubmitAsync">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <InputText class="form-control" @bind-Value="formModel.Description" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Amount</label>
+                            <InputNumber class="form-control" @bind-Value="formModel.Amount" />
+                        </div>
+
+                        <button class="btn btn-primary" type="submit" disabled="@isSubmitting">
+                            @(isSubmitting ? "Saving..." : "Add expense")
+                        </button>
+                    </EditForm>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <strong>Movement history</strong>
+                </div>
+                <div class="card-body">
+                    <MovementTable Movements="movements" EmptyMessage="No expense movements yet." />
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private static readonly CultureInfo ArsCulture = new("es-AR");
+
+    [Parameter] public Guid AccountId { get; set; }
+
+    private AccountSummaryDto? account;
+    private IReadOnlyList<MovementDto> movements = [];
+    private ExpenseMovementFormModel formModel = new();
+    private bool isLoading = true;
+    private bool isSubmitting;
+    private string? statusMessage;
+    private string statusCss = "alert-info";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        var summaryTask = AccountsApi.GetExpenseAccountSummaryAsync(AccountId);
+        var movementsTask = AccountsApi.GetExpenseMovementsAsync(AccountId);
+        await Task.WhenAll(summaryTask, movementsTask);
+
+        account = await summaryTask;
+        movements = account is null ? [] : await movementsTask;
+        isLoading = false;
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (!formModel.Amount.HasValue)
+        {
+            return;
+        }
+
+        isSubmitting = true;
+        statusMessage = null;
+
+        var created = await AccountsApi.CreateExpenseMovementAsync(
+            AccountId,
+            new CreateMovementRequest(formModel.Description, formModel.Amount.Value));
+
+        isSubmitting = false;
+
+        if (created is null)
+        {
+            statusCss = "alert-danger";
+            statusMessage = "Failed to register the expense movement.";
+            return;
+        }
+
+        formModel = new ExpenseMovementFormModel();
+        await LoadAsync();
+        statusCss = "alert-success";
+        statusMessage = "Expense movement registered.";
+    }
+
+    private sealed class ExpenseMovementFormModel
+    {
+        [Required]
+        public string Description { get; set; } = string.Empty;
+
+        [Range(typeof(decimal), "0.01", "999999999")]
+        public decimal? Amount { get; set; }
+    }
+}

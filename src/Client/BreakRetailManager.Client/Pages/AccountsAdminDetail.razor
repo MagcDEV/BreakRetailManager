@@ -1,0 +1,161 @@
+@page "/accounts/admin/{AccountId:guid}"
+@attribute [Authorize(Roles = "Admin")]
+@using System.Globalization
+@inject AccountsControlApiClient AccountsApi
+
+<PageTitle>Account Detail</PageTitle>
+
+<a class="btn btn-link px-0 mb-3" href="accounts/admin">Back to dashboard</a>
+<h1>Account detail</h1>
+
+@if (!string.IsNullOrWhiteSpace(statusMessage))
+{
+    <div class="alert @statusCss alert-dismissible" role="alert">
+        @statusMessage
+        <button type="button" class="btn-close" @onclick="() => statusMessage = null"></button>
+    </div>
+}
+
+@if (isLoading)
+{
+    <p><em>Loading account...</em></p>
+}
+else if (detail is null)
+{
+    <div class="alert alert-warning" role="alert">
+        The requested account could not be loaded.
+    </div>
+}
+else
+{
+    <div class="row g-4">
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-header bg-dark text-white">
+                    <strong>@detail.Account.Name</strong>
+                </div>
+                <div class="card-body">
+                    <div class="mb-2"><strong>Type:</strong> @detail.Account.Type</div>
+                    <div class="mb-2"><strong>Status:</strong> @(detail.Account.IsActive ? "Active" : "Inactive")</div>
+                    <div class="mb-2"><strong>Movements:</strong> @detail.Account.MovementCount</div>
+                    <div class="mb-2"><strong>Last activity:</strong> @(detail.Account.LastActivityAt?.LocalDateTime.ToString("g") ?? "No activity yet")</div>
+                    <hr />
+                    <div class="display-6 @(detail.Account.Balance > 0 ? "text-danger" : "text-success")">
+                        @detail.Account.Balance.ToString("C", ArsCulture)
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <strong>Apply adjustment</strong>
+                </div>
+                <div class="card-body">
+                    <EditForm Model="formModel" OnValidSubmit="SubmitAsync">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <InputText class="form-control" @bind-Value="formModel.Description" />
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Amount</label>
+                                <InputNumber class="form-control" @bind-Value="formModel.Amount" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Direction</label>
+                                <InputSelect class="form-select" @bind-Value="formModel.Direction">
+                                    <option value="@AdminAdjustmentDirection.Increase">Increase balance</option>
+                                    <option value="@AdminAdjustmentDirection.Decrease">Decrease balance</option>
+                                </InputSelect>
+                            </div>
+                        </div>
+
+                        <button class="btn btn-primary mt-3" type="submit" disabled="@isSubmitting || !detail.Account.IsActive">
+                            @(isSubmitting ? "Saving..." : "Apply adjustment")
+                        </button>
+                    </EditForm>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <strong>Movement history</strong>
+                </div>
+                <div class="card-body">
+                    <MovementTable Movements="detail.Movements" EmptyMessage="No movements recorded yet." />
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private static readonly CultureInfo ArsCulture = new("es-AR");
+
+    [Parameter] public Guid AccountId { get; set; }
+
+    private AdminAccountDetailDto? detail;
+    private AdminAdjustmentFormModel formModel = new();
+    private bool isLoading = true;
+    private bool isSubmitting;
+    private string? statusMessage;
+    private string statusCss = "alert-info";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        detail = await AccountsApi.GetAdminAccountDetailAsync(AccountId);
+        isLoading = false;
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (!formModel.Amount.HasValue)
+        {
+            return;
+        }
+
+        isSubmitting = true;
+        statusMessage = null;
+
+        var created = await AccountsApi.CreateAdminAdjustmentAsync(
+            AccountId,
+            new CreateAdminAdjustmentRequest(formModel.Description, formModel.Amount.Value, formModel.Direction));
+
+        isSubmitting = false;
+
+        if (created is null)
+        {
+            statusCss = "alert-danger";
+            statusMessage = "Failed to apply the adjustment.";
+            return;
+        }
+
+        formModel = new AdminAdjustmentFormModel();
+        await LoadAsync();
+        statusCss = "alert-success";
+        statusMessage = "Adjustment applied.";
+    }
+
+    private sealed class AdminAdjustmentFormModel
+    {
+        [Required]
+        public string Description { get; set; } = string.Empty;
+
+        [Range(typeof(decimal), "0.01", "999999999")]
+        public decimal? Amount { get; set; }
+
+        public AdminAdjustmentDirection Direction { get; set; } = AdminAdjustmentDirection.Increase;
+    }
+}

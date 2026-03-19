@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\BuildingBlocks\BreakRetailManager.BuildingBlocks\BreakRetailManager.BuildingBlocks.csproj" />
+    <ProjectReference Include="..\..\Modules\AccountsControl\BreakRetailManager.AccountsControl.Infrastructure\BreakRetailManager.AccountsControl.Infrastructure.csproj" />
     <ProjectReference Include="..\..\Modules\Sales\BreakRetailManager.Sales.Infrastructure\BreakRetailManager.Sales.Infrastructure.csproj" />
     <ProjectReference Include="..\..\Modules\UserManagement\BreakRetailManager.UserManagement.Infrastructure\BreakRetailManager.UserManagement.Infrastructure.csproj" />
     <ProjectReference Include="..\..\Modules\Inventory\BreakRetailManager.Inventory.Infrastructure\BreakRetailManager.Inventory.Infrastructure.csproj" />

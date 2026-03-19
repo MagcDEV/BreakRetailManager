@@ -1,10 +1,12 @@
 ﻿@inherits LayoutComponentBase
 @implements IDisposable
+@using System.Globalization
 @using System.Security.Claims
 @using BreakRetailManager.Inventory.Contracts
 @inject UserRoleProvider RoleProvider
 @inject CurrentLocationProvider CurrentLocation
 @inject InventoryApiClient InventoryApi
+@inject AccountsControlApiClient AccountsApi
 
 <div class="page">
     <div class="sidebar">
@@ -58,11 +60,48 @@
                                 </select>
                             </div>
                         }
+
+                        <div class="user-indicator" title="Current total store balance">
+                            <span class="user-indicator-label">Store balance</span>
+                            @if (isLoadingStoreSummary)
+                            {
+                                <span class="user-indicator-name">Loading...</span>
+                            }
+                            else if (storeSummary is not null)
+                            {
+                                <span class="user-indicator-name @(storeSummary.TotalOutstandingBalance > 0 ? "text-danger" : "text-success")">
+                                    @storeSummary.TotalOutstandingBalance.ToString("C", arsCulture)
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="user-indicator-name">Unavailable</span>
+                            }
+                        </div>
                     </div>
                 </Authorized>
                 <NotAuthorized>
-                    <div class="user-indicator user-indicator-anonymous" title="No active session">
-                        <span class="user-indicator-label">Not signed in</span>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <div class="user-indicator user-indicator-anonymous" title="No active session">
+                            <span class="user-indicator-label">Not signed in</span>
+                        </div>
+                        <div class="user-indicator" title="Current total store balance">
+                            <span class="user-indicator-label">Store balance</span>
+                            @if (isLoadingStoreSummary)
+                            {
+                                <span class="user-indicator-name">Loading...</span>
+                            }
+                            else if (storeSummary is not null)
+                            {
+                                <span class="user-indicator-name @(storeSummary.TotalOutstandingBalance > 0 ? "text-danger" : "text-success")">
+                                    @storeSummary.TotalOutstandingBalance.ToString("C", arsCulture)
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="user-indicator-name">Unavailable</span>
+                            }
+                        </div>
                     </div>
                 </NotAuthorized>
             </AuthorizeView>
@@ -80,13 +119,19 @@
     {
         RoleProvider.RolesChanged += HandleRolesChanged;
         CurrentLocation.LocationChanged += HandleLocationChanged;
+        AccountsApi.StoreBalanceChanged += HandleStoreBalanceChanged;
         await RoleProvider.InitializeAsync();
         await CurrentLocation.InitializeAsync();
-        _ = EnsureLocationsLoadedAsync();
+        await Task.WhenAll(
+            EnsureLocationsLoadedAsync(),
+            RefreshStoreSummaryAsync());
     }
 
     private readonly List<LocationDto> locations = new();
     private bool isLoadingLocations;
+    private bool isLoadingStoreSummary;
+    private PublicSummaryDto? storeSummary;
+    private static readonly CultureInfo arsCulture = new("es-AR");
 
     private bool CanSelectLocation =>
         RoleProvider.Roles.Contains("Admin", StringComparer.OrdinalIgnoreCase)
@@ -129,6 +174,26 @@
         }
     }
 
+    private async Task RefreshStoreSummaryAsync()
+    {
+        if (isLoadingStoreSummary)
+        {
+            return;
+        }
+
+        isLoadingStoreSummary = true;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            storeSummary = await AccountsApi.GetPublicSummaryAsync();
+        }
+        finally
+        {
+            isLoadingStoreSummary = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
     private void HandleRolesChanged()
     {
         _ = InvokeAsync(async () =>
@@ -149,6 +214,11 @@
     private void HandleLocationChanged()
     {
         _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void HandleStoreBalanceChanged()
+    {
+        _ = InvokeAsync(RefreshStoreSummaryAsync);
     }
 
     private async Task OnLocationSelectChanged(ChangeEventArgs e)
@@ -189,5 +259,6 @@
     {
         RoleProvider.RolesChanged -= HandleRolesChanged;
         CurrentLocation.LocationChanged -= HandleLocationChanged;
+        AccountsApi.StoreBalanceChanged -= HandleStoreBalanceChanged;
     }
 }

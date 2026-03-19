@@ -27,6 +27,8 @@ builder.Services.AddMsalAuthentication(options =>
     }
 });
 
+builder.Services.AddHttpClient("PublicApiClient", client => client.BaseAddress = new Uri(apiBaseUrl));
+
 builder.Services.AddHttpClient("ApiClient", client => client.BaseAddress = new Uri(apiBaseUrl))
     .AddHttpMessageHandler(sp =>
     {
@@ -41,6 +43,7 @@ builder.Services.AddScoped<ConnectivityService>();
 builder.Services.AddScoped<SalesApiClient>();
 builder.Services.AddScoped<UserApiClient>();
 builder.Services.AddScoped<InventoryApiClient>();
+builder.Services.AddScoped<AccountsControlApiClient>();
 builder.Services.AddScoped<InventoryRealtimeClient>();
 builder.Services.AddScoped<UserRoleProvider>();
 builder.Services.AddScoped<CurrentLocationProvider>();

@@ -1,0 +1,270 @@
+@page "/accounts/admin"
+@attribute [Authorize(Roles = "Admin")]
+@inject AccountsControlApiClient AccountsApi
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Accounts Control</PageTitle>
+
+<h1>Accounts control</h1>
+
+@if (!string.IsNullOrWhiteSpace(statusMessage))
+{
+    <div class="alert @statusCss alert-dismissible" role="alert">
+        @statusMessage
+        <button type="button" class="btn-close" @onclick="() => statusMessage = null"></button>
+    </div>
+}
+
+@if (isLoading)
+{
+    <p><em>Loading dashboard...</em></p>
+}
+else if (dashboard is null)
+{
+    <div class="alert alert-danger" role="alert">
+        Failed to load the accounts dashboard.
+    </div>
+}
+else
+{
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="text-muted small text-uppercase">Outstanding balance</div>
+                    <div class="display-6 @(dashboard.TotalOutstandingBalance > 0 ? "text-danger" : "text-success")">
+                        @dashboard.TotalOutstandingBalance.ToString("C")
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="text-muted small text-uppercase">General expenses</div>
+                    <div class="display-6 text-danger">@dashboard.TotalGeneralExpenseBalance.ToString("C")</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="text-muted small text-uppercase">Collected via adjustments</div>
+                    <div class="display-6 text-success">@dashboard.TotalCollected.ToString("C")</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <div>
+            <strong>Manage accounts and adjustments</strong>
+        </div>
+        <a class="btn btn-outline-secondary" href="accounts/admin/movements">Open global movement log</a>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            <strong>Create account</strong>
+        </div>
+        <div class="card-body">
+            <EditForm Model="createModel" OnValidSubmit="CreateAccountAsync">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Name</label>
+                        <InputText class="form-control" @bind-Value="createModel.Name" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Type</label>
+                        <InputSelect class="form-select" @bind-Value="createModel.Type">
+                            <option value="@AccountType.Employee">Employee</option>
+                            <option value="@AccountType.GeneralExpense">General expense</option>
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-2 d-grid align-self-end">
+                        <button class="btn btn-primary" type="submit" disabled="@isSubmitting">
+                            @(isSubmitting ? "Saving..." : "Create")
+                        </button>
+                    </div>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-xl-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <strong>Employees</strong>
+                </div>
+                <div class="card-body">
+                    @if (dashboard.EmployeeAccounts.Count == 0)
+                    {
+                        <p class="text-muted mb-0">No employee accounts yet.</p>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle">
+                                <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Status</th>
+                                    <th>Movements</th>
+                                    <th class="text-end">Balance</th>
+                                    <th></th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                @foreach (var account in dashboard.EmployeeAccounts)
+                                {
+                                    <tr>
+                                        <td>@account.Name</td>
+                                        <td>@(account.IsActive ? "Active" : "Inactive")</td>
+                                        <td>@account.MovementCount</td>
+                                        <td class="text-end">@account.Balance.ToString("C")</td>
+                                        <td class="text-end">
+                                            <button class="btn btn-sm btn-outline-primary me-2" @onclick="() => OpenAccountAsync(account.Id)">View</button>
+                                            <button class="btn btn-sm btn-outline-danger" disabled="@(!account.IsActive)" @onclick="() => DeactivateAsync(account)">
+                                                Deactivate
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <strong>General expenses</strong>
+                </div>
+                <div class="card-body">
+                    @if (dashboard.ExpenseAccounts.Count == 0)
+                    {
+                        <p class="text-muted mb-0">No expense accounts yet.</p>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle">
+                                <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Status</th>
+                                    <th>Movements</th>
+                                    <th class="text-end">Balance</th>
+                                    <th></th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                @foreach (var account in dashboard.ExpenseAccounts)
+                                {
+                                    <tr>
+                                        <td>@account.Name</td>
+                                        <td>@(account.IsActive ? "Active" : "Inactive")</td>
+                                        <td>@account.MovementCount</td>
+                                        <td class="text-end">@account.Balance.ToString("C")</td>
+                                        <td class="text-end">
+                                            <button class="btn btn-sm btn-outline-primary me-2" @onclick="() => OpenAccountAsync(account.Id)">View</button>
+                                            <button class="btn btn-sm btn-outline-danger" disabled="@(!account.IsActive)" @onclick="() => DeactivateAsync(account)">
+                                                Deactivate
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private AdminDashboardDto? dashboard;
+    private CreateAccountFormModel createModel = new();
+    private bool isLoading = true;
+    private bool isSubmitting;
+    private string? statusMessage;
+    private string statusCss = "alert-info";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        dashboard = await AccountsApi.GetDashboardAsync();
+        isLoading = false;
+    }
+
+    private void OpenAccountAsync(Guid accountId)
+    {
+        Navigation.NavigateTo($"/accounts/admin/{accountId}");
+    }
+
+    private async Task CreateAccountAsync()
+    {
+        isSubmitting = true;
+        statusMessage = null;
+
+        var created = await AccountsApi.CreateAccountAsync(new CreateAccountRequest(createModel.Name, createModel.Type));
+        isSubmitting = false;
+
+        if (created is null)
+        {
+            statusCss = "alert-danger";
+            statusMessage = "Failed to create the account.";
+            return;
+        }
+
+        createModel = new CreateAccountFormModel();
+        await LoadAsync();
+        statusCss = "alert-success";
+        statusMessage = $"Account '{created.Name}' created.";
+    }
+
+    private async Task DeactivateAsync(AccountSummaryDto account)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", $"Deactivate '{account.Name}'?");
+        if (!confirmed)
+        {
+            return;
+        }
+
+        statusMessage = null;
+        var success = await AccountsApi.DeactivateAccountAsync(account.Id);
+        if (!success)
+        {
+            statusCss = "alert-danger";
+            statusMessage = "Failed to deactivate the account.";
+            return;
+        }
+
+        await LoadAsync();
+        statusCss = "alert-success";
+        statusMessage = $"Account '{account.Name}' deactivated.";
+    }
+
+    private sealed class CreateAccountFormModel
+    {
+        [Required]
+        public string Name { get; set; } = string.Empty;
+
+        public AccountType Type { get; set; } = AccountType.Employee;
+    }
+}

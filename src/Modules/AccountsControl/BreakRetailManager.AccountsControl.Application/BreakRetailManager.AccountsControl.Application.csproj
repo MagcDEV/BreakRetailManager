@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\BreakRetailManager.AccountsControl.Domain\BreakRetailManager.AccountsControl.Domain.csproj" />
+    <ProjectReference Include="..\BreakRetailManager.AccountsControl.Contracts\BreakRetailManager.AccountsControl.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\BreakRetailManager.BuildingBlocks\BreakRetailManager.BuildingBlocks.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

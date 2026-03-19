@@ -1,0 +1,72 @@
+@page "/accounts/admin/movements"
+@attribute [Authorize(Roles = "Admin")]
+@inject AccountsControlApiClient AccountsApi
+
+<PageTitle>Global Movement Log</PageTitle>
+
+<a class="btn btn-link px-0 mb-3" href="accounts/admin">Back to dashboard</a>
+<h1>Global movement log</h1>
+
+@if (isLoading)
+{
+    <p><em>Loading movements...</em></p>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="text-muted">
+            Showing page @movements.Page of @Math.Max(movements.TotalPages, 1)
+        </div>
+        <div class="btn-group">
+            <button class="btn btn-outline-secondary" @onclick="PreviousPageAsync" disabled="@(!movements.HasPreviousPage)">Previous</button>
+            <button class="btn btn-outline-secondary" @onclick="NextPageAsync" disabled="@(!movements.HasNextPage)">Next</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <MovementTable Movements="movements.Items" ShowAccountColumns="true" EmptyMessage="No movements found." />
+        </div>
+    </div>
+}
+
+@code {
+    private int currentPage = 1;
+    private const int PageSize = 25;
+    private bool isLoading = true;
+    private MovementPageDto movements = new([], 0, 1, PageSize);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        movements = await AccountsApi.GetAdminMovementsAsync(currentPage, PageSize);
+        isLoading = false;
+    }
+
+    private async Task PreviousPageAsync()
+    {
+        if (!movements.HasPreviousPage)
+        {
+            return;
+        }
+
+        currentPage--;
+        await LoadAsync();
+    }
+
+    private async Task NextPageAsync()
+    {
+        if (!movements.HasNextPage)
+        {
+            return;
+        }
+
+        currentPage++;
+        await LoadAsync();
+    }
+}

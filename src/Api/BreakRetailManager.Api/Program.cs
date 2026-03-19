@@ -1,3 +1,5 @@
+using BreakRetailManager.AccountsControl.Infrastructure;
+using BreakRetailManager.AccountsControl.Infrastructure.Data;
 using BreakRetailManager.BuildingBlocks.Modules;
 using BreakRetailManager.BuildingBlocks.Realtime;
 using BreakRetailManager.Inventory.Infrastructure;
@@ -39,6 +41,7 @@ builder.Services.AddAuthorization(options =>
 });
 
 builder.Services.AddModules(builder.Configuration,
+    typeof(AccountsControlModule).Assembly,
     typeof(SalesModule).Assembly,
     typeof(UserManagementModule).Assembly,
     typeof(InventoryModule).Assembly);
@@ -68,11 +71,14 @@ if (app.Environment.IsDevelopment())
     var salesDb = scope.ServiceProvider.GetRequiredService<SalesDbContext>();
     var usersDb = scope.ServiceProvider.GetRequiredService<UserManagementDbContext>();
     var inventoryDb = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
+    var accountsDb = scope.ServiceProvider.GetRequiredService<AccountsControlDbContext>();
 
-    await Task.WhenAll(
-        salesDb.Database.MigrateAsync(),
-        usersDb.Database.MigrateAsync(),
-        inventoryDb.Database.MigrateAsync());
+    // The module contexts share one database, and the inventory migrations currently
+    // include data fixes that touch sales tables, so migrate them in a deterministic order.
+    await salesDb.Database.MigrateAsync();
+    await usersDb.Database.MigrateAsync();
+    await inventoryDb.Database.MigrateAsync();
+    await accountsDb.Database.MigrateAsync();
 }
 
 await UserManagementModule.SeedAsync(app.Services);
