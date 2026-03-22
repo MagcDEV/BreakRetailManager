@@ -7,6 +7,7 @@ using BreakRetailManager.Inventory.Contracts;
 using BreakRetailManager.Inventory.Infrastructure.Data;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -64,7 +65,7 @@ public sealed class InventoryModule : IModule
         })
             .Produces<PagedResult<ProductDto>>()
             .Produces<IReadOnlyList<ProductDto>>()
-            .CacheOutput("Short");
+            .CacheOutput("Products");
 
         managerGroup.MapGet("/products/low-stock", async (ProductService service, CancellationToken cancellationToken) =>
             Results.Ok(await service.GetLowStockProductsAsync(cancellationToken)))
@@ -88,16 +89,22 @@ public sealed class InventoryModule : IModule
             .Produces<IReadOnlyList<LocationStockDto>>()
             .RequireAuthorization("Cashier");
 
-        managerGroup.MapPost("/products", async (CreateProductRequest request, ProductService service, CancellationToken cancellationToken) =>
+        managerGroup.MapPost("/products", async (CreateProductRequest request, ProductService service, IOutputCacheStore outputCacheStore, CancellationToken cancellationToken) =>
         {
             var created = await service.CreateProductAsync(request, cancellationToken);
+            await outputCacheStore.EvictByTagAsync("products", cancellationToken);
             return Results.Created($"/api/inventory/products/{created.Id}", created);
         })
             .Produces<ProductDto>(StatusCodes.Status201Created);
 
-        managerGroup.MapPut("/products/{id:guid}", async (Guid id, UpdateProductRequest request, ProductService service, CancellationToken cancellationToken) =>
+        managerGroup.MapPut("/products/{id:guid}", async (Guid id, UpdateProductRequest request, ProductService service, IOutputCacheStore outputCacheStore, CancellationToken cancellationToken) =>
         {
             var product = await service.UpdateProductAsync(id, request, cancellationToken);
+            if (product is not null)
+            {
+                await outputCacheStore.EvictByTagAsync("products", cancellationToken);
+            }
+
             return product is null ? Results.NotFound() : Results.Ok(product);
         }).Produces<ProductDto>();
 
@@ -115,7 +122,7 @@ public sealed class InventoryModule : IModule
         })
             .Produces<PagedResult<ProviderDto>>()
             .Produces<IReadOnlyList<ProviderDto>>()
-            .CacheOutput("Medium");
+            .CacheOutput("Providers");
 
         managerGroup.MapGet("/providers/{id:guid}", async (Guid id, ProviderService service, CancellationToken cancellationToken) =>
         {
@@ -123,16 +130,22 @@ public sealed class InventoryModule : IModule
             return provider is null ? Results.NotFound() : Results.Ok(provider);
         }).Produces<ProviderDto>();
 
-        managerGroup.MapPost("/providers", async (CreateProviderRequest request, ProviderService service, CancellationToken cancellationToken) =>
+        managerGroup.MapPost("/providers", async (CreateProviderRequest request, ProviderService service, IOutputCacheStore outputCacheStore, CancellationToken cancellationToken) =>
         {
             var created = await service.CreateProviderAsync(request, cancellationToken);
+            await outputCacheStore.EvictByTagAsync("providers", cancellationToken);
             return Results.Created($"/api/inventory/providers/{created.Id}", created);
         })
             .Produces<ProviderDto>(StatusCodes.Status201Created);
 
-        managerGroup.MapPut("/providers/{id:guid}", async (Guid id, UpdateProviderRequest request, ProviderService service, CancellationToken cancellationToken) =>
+        managerGroup.MapPut("/providers/{id:guid}", async (Guid id, UpdateProviderRequest request, ProviderService service, IOutputCacheStore outputCacheStore, CancellationToken cancellationToken) =>
         {
             var provider = await service.UpdateProviderAsync(id, request, cancellationToken);
+            if (provider is not null)
+            {
+                await outputCacheStore.EvictByTagAsync("providers", cancellationToken);
+            }
+
             return provider is null ? Results.NotFound() : Results.Ok(provider);
         }).Produces<ProviderDto>();
 
@@ -140,7 +153,7 @@ public sealed class InventoryModule : IModule
         group.MapGet("/locations", async (LocationService service, CancellationToken cancellationToken) =>
             Results.Ok(await service.GetLocationsAsync(cancellationToken)))
             .Produces<IReadOnlyList<LocationDto>>()
-            .CacheOutput("Medium")
+            .CacheOutput("Locations")
             .RequireAuthorization("Cashier");
 
         managerGroup.MapGet("/locations/{id:guid}", async (Guid id, LocationService service, CancellationToken cancellationToken) =>
@@ -149,9 +162,10 @@ public sealed class InventoryModule : IModule
             return location is null ? Results.NotFound() : Results.Ok(location);
         }).Produces<LocationDto>();
 
-        managerGroup.MapPost("/locations", async (CreateLocationRequest request, LocationService service, CancellationToken cancellationToken) =>
+        managerGroup.MapPost("/locations", async (CreateLocationRequest request, LocationService service, IOutputCacheStore outputCacheStore, CancellationToken cancellationToken) =>
         {
             var created = await service.CreateLocationAsync(request, cancellationToken);
+            await outputCacheStore.EvictByTagAsync("locations", cancellationToken);
             return Results.Created($"/api/inventory/locations/{created.Id}", created);
         })
             .Produces<LocationDto>(StatusCodes.Status201Created);
@@ -169,6 +183,7 @@ public sealed class InventoryModule : IModule
             StockUpdateRequest request,
             ProductService service,
             IHubContext<InventoryHub> hubContext,
+            IOutputCacheStore outputCacheStore,
             CancellationToken cancellationToken) =>
         {
             if (request.Quantity >= 0)
@@ -186,6 +201,8 @@ public sealed class InventoryModule : IModule
                 {
                     return Results.NotFound();
                 }
+
+                await outputCacheStore.EvictByTagAsync("products", cancellationToken);
 
                 await hubContext.Clients.Group(locationId.ToString()).SendAsync(
                     InventoryHub.StockChangedMethod,
@@ -212,6 +229,7 @@ public sealed class InventoryModule : IModule
             StockUpdateRequest request,
             ProductService service,
             IHubContext<InventoryHub> hubContext,
+            IOutputCacheStore outputCacheStore,
             CancellationToken cancellationToken) =>
         {
             var stock = await service.UpdateLocationStockAsync(locationId, productId, request.Quantity, cancellationToken);
@@ -219,6 +237,8 @@ public sealed class InventoryModule : IModule
             {
                 return Results.NotFound();
             }
+
+            await outputCacheStore.EvictByTagAsync("products", cancellationToken);
 
             await hubContext.Clients.Group(locationId.ToString()).SendAsync(
                 InventoryHub.StockChangedMethod,

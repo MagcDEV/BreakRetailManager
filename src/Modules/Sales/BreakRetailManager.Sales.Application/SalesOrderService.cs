@@ -1,6 +1,7 @@
 using BreakRetailManager.BuildingBlocks.Inventory;
 using BreakRetailManager.BuildingBlocks.Pagination;
 using BreakRetailManager.Sales.Contracts;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace BreakRetailManager.Sales.Application;
 
@@ -10,17 +11,20 @@ public sealed class SalesOrderService
     private readonly IOfferRepository _offerRepository;
     private readonly IArcaFiscalService _fiscalService;
     private readonly IInventoryStockService _inventoryStockService;
+    private readonly IMemoryCache _cache;
 
     public SalesOrderService(
         ISalesOrderRepository repository,
         IOfferRepository offerRepository,
         IArcaFiscalService fiscalService,
-        IInventoryStockService inventoryStockService)
+        IInventoryStockService inventoryStockService,
+        IMemoryCache cache)
     {
         _repository = repository;
         _offerRepository = offerRepository;
         _fiscalService = fiscalService;
         _inventoryStockService = inventoryStockService;
+        _cache = cache;
     }
 
     public async Task<IReadOnlyList<SalesOrderDto>> GetOrdersAsync(CancellationToken cancellationToken = default)
@@ -45,8 +49,12 @@ public sealed class SalesOrderService
     {
         var order = SalesMappings.FromRequest(request);
         order.SetCreatedBy(createdByObjectId, createdByDisplayName);
-        var activeOffers = await _offerRepository.GetActiveAsync(cancellationToken);
-        var totalDiscount = OfferDiscountCalculator.CalculateDiscount(order, activeOffers);
+        var activeOffers = await _cache.GetOrCreateAsync(OfferService.ActiveOffersDomainCacheKey, async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(2);
+            return await _offerRepository.GetActiveAsync(cancellationToken);
+        });
+        var totalDiscount = OfferDiscountCalculator.CalculateDiscount(order, activeOffers ?? []);
         order.SetDiscount(totalDiscount);
 
         if (order.RequiresFiscalAuthorization)

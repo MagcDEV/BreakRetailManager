@@ -15,6 +15,12 @@ public sealed class SalesApiClient
     private readonly ConnectivityService _connectivity;
     private readonly ILogger<SalesApiClient> _logger;
 
+    private CacheEntry<IReadOnlyList<OfferDto>>? _activeOffersCache;
+    private CacheEntry<IReadOnlyList<SalesOrderDto>>? _ordersCache;
+
+    private static readonly TimeSpan ActiveOffersCacheTtl = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan OrdersCacheTtl = TimeSpan.FromSeconds(30);
+
     public SalesApiClient(
         HttpClient httpClient,
         IndexedDbSalesStore store,
@@ -35,6 +41,11 @@ public sealed class SalesApiClient
             return await _store.GetCachedOrdersAsync();
         }
 
+        if (_ordersCache is { IsValid: true })
+        {
+            return _ordersCache.Data;
+        }
+
         try
         {
             var orders = await _httpClient.GetFromJsonAsync<List<SalesOrderDto>>(OrdersEndpoint, cancellationToken);
@@ -44,6 +55,7 @@ public sealed class SalesApiClient
             }
 
             await _store.SetCachedOrdersAsync(orders);
+            _ordersCache = new CacheEntry<IReadOnlyList<SalesOrderDto>>(orders, DateTime.UtcNow.Add(OrdersCacheTtl));
             return orders;
         }
         catch (HttpRequestException exception)
@@ -57,6 +69,8 @@ public sealed class SalesApiClient
         CreateSalesOrderRequest request,
         CancellationToken cancellationToken = default)
     {
+        _ordersCache = null;
+
         if (!await _connectivity.IsOnlineAsync())
         {
             return await EnqueueOfflineOrderAsync(request);
@@ -103,20 +117,28 @@ public sealed class SalesApiClient
 
     public async Task<IReadOnlyList<OfferDto>> GetActiveOffersAsync(CancellationToken cancellationToken = default)
     {
+        if (_activeOffersCache is { IsValid: true })
+        {
+            return _activeOffersCache.Data;
+        }
+
         try
         {
-            return await _httpClient.GetFromJsonAsync<List<OfferDto>>(ActiveOffersEndpoint, cancellationToken)
+            var offers = await _httpClient.GetFromJsonAsync<List<OfferDto>>(ActiveOffersEndpoint, cancellationToken)
                 ?? [];
+            _activeOffersCache = new CacheEntry<IReadOnlyList<OfferDto>>(offers, DateTime.UtcNow.Add(ActiveOffersCacheTtl));
+            return offers;
         }
         catch (HttpRequestException exception)
         {
             _logger.LogWarning(exception, "Failed to fetch active offers.");
-            return [];
+            return _activeOffersCache?.Data ?? [];
         }
     }
 
     public async Task<OfferDto?> CreateOfferAsync(CreateOfferRequest request, CancellationToken cancellationToken = default)
     {
+        _activeOffersCache = null;
         try
         {
             var response = await _httpClient.PostAsJsonAsync(OffersEndpoint, request, cancellationToken);
@@ -132,6 +154,7 @@ public sealed class SalesApiClient
 
     public async Task<OfferDto?> UpdateOfferAsync(Guid id, UpdateOfferRequest request, CancellationToken cancellationToken = default)
     {
+        _activeOffersCache = null;
         try
         {
             var response = await _httpClient.PutAsJsonAsync($"{OffersEndpoint}/{id}", request, cancellationToken);
@@ -147,6 +170,7 @@ public sealed class SalesApiClient
 
     public async Task<OfferDto?> ActivateOfferAsync(Guid id, CancellationToken cancellationToken = default)
     {
+        _activeOffersCache = null;
         try
         {
             var response = await _httpClient.PostAsync($"{OffersEndpoint}/{id}/activate", content: null, cancellationToken);
@@ -162,6 +186,7 @@ public sealed class SalesApiClient
 
     public async Task<OfferDto?> DeactivateOfferAsync(Guid id, CancellationToken cancellationToken = default)
     {
+        _activeOffersCache = null;
         try
         {
             var response = await _httpClient.PostAsync($"{OffersEndpoint}/{id}/deactivate", content: null, cancellationToken);
@@ -177,6 +202,7 @@ public sealed class SalesApiClient
 
     public async Task<bool> DeleteOfferAsync(Guid id, CancellationToken cancellationToken = default)
     {
+        _activeOffersCache = null;
         try
         {
             var response = await _httpClient.DeleteAsync($"{OffersEndpoint}/{id}", cancellationToken);
@@ -224,6 +250,7 @@ public sealed class SalesApiClient
 
         if (synced > 0)
         {
+            _ordersCache = null;
             await RefreshCacheAsync(cancellationToken);
         }
 

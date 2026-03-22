@@ -10,6 +10,8 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.OutputCaching;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -66,7 +68,7 @@ public sealed class UserManagementModule : IModule
         group.MapGet("/roles", async (UserService service, CancellationToken cancellationToken) =>
             Results.Ok(await service.GetAllRolesAsync(cancellationToken)))
             .Produces<IReadOnlyList<RoleDto>>()
-            .CacheOutput("Long")
+            .CacheOutput("Roles")
             .RequireAuthorization("Admin");
 
         // Assign a role to a user — Admin only
@@ -74,9 +76,17 @@ public sealed class UserManagementModule : IModule
             Guid userId,
             AssignRoleRequest request,
             UserService service,
+            IMemoryCache cache,
+            IOutputCacheStore outputCacheStore,
             CancellationToken cancellationToken) =>
         {
             var result = await service.AssignRoleAsync(userId, request.RoleName, cancellationToken);
+            if (result is not null)
+            {
+                cache.Remove($"user-roles:{result.ObjectId}");
+                await outputCacheStore.EvictByTagAsync("roles", cancellationToken);
+            }
+
             return result is null ? Results.NotFound() : Results.Ok(result);
         })
         .Produces<UserDto>()
@@ -87,9 +97,17 @@ public sealed class UserManagementModule : IModule
             Guid userId,
             string roleName,
             UserService service,
+            IMemoryCache cache,
+            IOutputCacheStore outputCacheStore,
             CancellationToken cancellationToken) =>
         {
             var result = await service.RevokeRoleAsync(userId, roleName, cancellationToken);
+            if (result is not null)
+            {
+                cache.Remove($"user-roles:{result.ObjectId}");
+                await outputCacheStore.EvictByTagAsync("roles", cancellationToken);
+            }
+
             return result is null ? Results.NotFound() : Results.Ok(result);
         })
         .Produces<UserDto>()

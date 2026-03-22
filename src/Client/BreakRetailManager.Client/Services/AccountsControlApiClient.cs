@@ -13,6 +13,13 @@ public sealed class AccountsControlApiClient
     private readonly HttpClient _authorizedHttpClient;
     private readonly ILogger<AccountsControlApiClient> _logger;
 
+    private CacheEntry<PublicSummaryDto>? _summaryCache;
+    private CacheEntry<IReadOnlyList<AccountOptionDto>>? _employeesCache;
+    private CacheEntry<IReadOnlyList<AccountOptionDto>>? _expensesCache;
+
+    private static readonly TimeSpan SummaryCacheTtl = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan AccountsListCacheTtl = TimeSpan.FromSeconds(60);
+
     public AccountsControlApiClient(IHttpClientFactory httpClientFactory, ILogger<AccountsControlApiClient> logger)
     {
         _publicHttpClient = httpClientFactory.CreateClient("PublicApiClient");
@@ -24,40 +31,65 @@ public sealed class AccountsControlApiClient
 
     public async Task<PublicSummaryDto?> GetPublicSummaryAsync(CancellationToken cancellationToken = default)
     {
+        if (_summaryCache is { IsValid: true })
+        {
+            return _summaryCache.Data;
+        }
+
         try
         {
-            return await _publicHttpClient.GetFromJsonAsync<PublicSummaryDto>($"{AccountsEndpoint}/summary", cancellationToken);
+            var summary = await _publicHttpClient.GetFromJsonAsync<PublicSummaryDto>($"{AccountsEndpoint}/summary", cancellationToken);
+            if (summary is not null)
+            {
+                _summaryCache = new CacheEntry<PublicSummaryDto>(summary, DateTime.UtcNow.Add(SummaryCacheTtl));
+            }
+
+            return summary;
         }
         catch (HttpRequestException ex)
         {
             _logger.LogWarning(ex, "Failed to load accounts summary.");
-            return null;
+            return _summaryCache?.Data;
         }
     }
 
     public async Task<IReadOnlyList<AccountOptionDto>> GetEmployeeAccountsAsync(CancellationToken cancellationToken = default)
     {
+        if (_employeesCache is { IsValid: true })
+        {
+            return _employeesCache.Data;
+        }
+
         try
         {
-            return await _publicHttpClient.GetFromJsonAsync<List<AccountOptionDto>>($"{AccountsEndpoint}/employees", cancellationToken) ?? [];
+            var employees = await _publicHttpClient.GetFromJsonAsync<List<AccountOptionDto>>($"{AccountsEndpoint}/employees", cancellationToken) ?? [];
+            _employeesCache = new CacheEntry<IReadOnlyList<AccountOptionDto>>(employees, DateTime.UtcNow.Add(AccountsListCacheTtl));
+            return employees;
         }
         catch (HttpRequestException ex)
         {
             _logger.LogWarning(ex, "Failed to load employee accounts.");
-            return [];
+            return _employeesCache?.Data ?? [];
         }
     }
 
     public async Task<IReadOnlyList<AccountOptionDto>> GetExpenseAccountsAsync(CancellationToken cancellationToken = default)
     {
+        if (_expensesCache is { IsValid: true })
+        {
+            return _expensesCache.Data;
+        }
+
         try
         {
-            return await _publicHttpClient.GetFromJsonAsync<List<AccountOptionDto>>($"{AccountsEndpoint}/expenses", cancellationToken) ?? [];
+            var expenses = await _publicHttpClient.GetFromJsonAsync<List<AccountOptionDto>>($"{AccountsEndpoint}/expenses", cancellationToken) ?? [];
+            _expensesCache = new CacheEntry<IReadOnlyList<AccountOptionDto>>(expenses, DateTime.UtcNow.Add(AccountsListCacheTtl));
+            return expenses;
         }
         catch (HttpRequestException ex)
         {
             _logger.LogWarning(ex, "Failed to load expense accounts.");
-            return [];
+            return _expensesCache?.Data ?? [];
         }
     }
 
@@ -126,6 +158,7 @@ public sealed class AccountsControlApiClient
             var created = await response.Content.ReadFromJsonAsync<AccountSummaryDto>(cancellationToken: cancellationToken);
             if (created is not null)
             {
+                InvalidateAccountsCaches();
                 StoreBalanceChanged?.Invoke();
             }
 
@@ -149,6 +182,7 @@ public sealed class AccountsControlApiClient
             }
 
             response.EnsureSuccessStatusCode();
+            InvalidateAccountsCaches();
             StoreBalanceChanged?.Invoke();
             return true;
         }
@@ -175,6 +209,7 @@ public sealed class AccountsControlApiClient
             var created = await response.Content.ReadFromJsonAsync<MovementDto>(cancellationToken: cancellationToken);
             if (created is not null)
             {
+                InvalidateAccountsCaches();
                 StoreBalanceChanged?.Invoke();
             }
 
@@ -250,6 +285,7 @@ public sealed class AccountsControlApiClient
             var created = await response.Content.ReadFromJsonAsync<T>(cancellationToken: cancellationToken);
             if (created is not null && raiseBalanceChanged)
             {
+                InvalidateAccountsCaches();
                 StoreBalanceChanged?.Invoke();
             }
 
@@ -260,5 +296,12 @@ public sealed class AccountsControlApiClient
             _logger.LogWarning(ex, "Failed to post public accounts request {Url}.", url);
             return default;
         }
+    }
+
+    private void InvalidateAccountsCaches()
+    {
+        _summaryCache = null;
+        _employeesCache = null;
+        _expensesCache = null;
     }
 }

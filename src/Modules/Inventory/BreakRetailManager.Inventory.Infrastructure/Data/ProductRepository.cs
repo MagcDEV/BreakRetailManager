@@ -56,19 +56,21 @@ public sealed class ProductRepository : IProductRepository
 
     public async Task<IReadOnlyList<(Product Product, int StockTotal)>> GetLowStockWithTotalsAsync(CancellationToken cancellationToken = default)
     {
-        var query = from product in _dbContext.Products.AsNoTracking().Include(p => p.Provider)
-                    join stockGroup in _dbContext.Set<LocationStock>()
-                        .GroupBy(s => s.ProductId)
-                        .Select(g => new { ProductId = g.Key, Total = g.Sum(s => s.Quantity) })
-                    on product.Id equals stockGroup.ProductId into stockJoin
-                    from stock in stockJoin.DefaultIfEmpty()
-                    let total = stock != null ? stock.Total : 0
-                    where total <= product.ReorderLevel
-                    orderby total
-                    select new { Product = product, StockTotal = total };
+        var stockTotals = await _dbContext.Set<LocationStock>()
+            .GroupBy(s => s.ProductId)
+            .Select(g => new { ProductId = g.Key, Total = g.Sum(s => s.Quantity) })
+            .ToDictionaryAsync(s => s.ProductId, s => s.Total, cancellationToken);
 
-        var results = await query.ToListAsync(cancellationToken);
-        return results.Select(r => (r.Product, r.StockTotal)).ToList();
+        var products = await _dbContext.Products
+            .AsNoTracking()
+            .Include(p => p.Provider)
+            .ToListAsync(cancellationToken);
+
+        return products
+            .Select(p => (Product: p, StockTotal: stockTotals.GetValueOrDefault(p.Id, 0)))
+            .Where(x => x.StockTotal <= x.Product.ReorderLevel)
+            .OrderBy(x => x.StockTotal)
+            .ToList();
     }
 
     public async Task AddAsync(Product product, CancellationToken cancellationToken = default)

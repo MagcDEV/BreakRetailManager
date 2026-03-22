@@ -1,5 +1,6 @@
 using BreakRetailManager.Sales.Contracts;
 using BreakRetailManager.Sales.Domain.Entities;
+using Microsoft.Extensions.Caching.Memory;
 using ContractOfferDiscountType = BreakRetailManager.Sales.Contracts.OfferDiscountType;
 
 namespace BreakRetailManager.Sales.Application.Tests;
@@ -102,7 +103,7 @@ public sealed class OfferServiceTests
 
     private static OfferService CreateService()
     {
-        return new OfferService(new InMemoryOfferRepository());
+        return new OfferService(new InMemoryOfferRepository(), new MemoryCache(new MemoryCacheOptions()));
     }
 
     private sealed class InMemoryOfferRepository : IOfferRepository

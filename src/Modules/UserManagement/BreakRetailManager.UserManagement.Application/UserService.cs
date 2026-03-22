@@ -1,14 +1,19 @@
 using BreakRetailManager.UserManagement.Contracts;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace BreakRetailManager.UserManagement.Application;
 
 public sealed class UserService
 {
-    private readonly IUserRepository _repository;
+    private const string RolesCacheKey = "roles-all";
 
-    public UserService(IUserRepository repository)
+    private readonly IUserRepository _repository;
+    private readonly IMemoryCache _cache;
+
+    public UserService(IUserRepository repository, IMemoryCache cache)
     {
         _repository = repository;
+        _cache = cache;
     }
 
     public async Task<IReadOnlyList<UserDto>> GetAllUsersAsync(CancellationToken cancellationToken = default)
@@ -100,7 +105,13 @@ public sealed class UserService
 
     public async Task<IReadOnlyList<RoleDto>> GetAllRolesAsync(CancellationToken cancellationToken = default)
     {
-        var roles = await _repository.GetAllRolesAsync(cancellationToken);
-        return roles.Select(UserMappings.ToDto).ToList();
+        var cached = await _cache.GetOrCreateAsync(RolesCacheKey, async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10);
+            var roles = await _repository.GetAllRolesAsync(cancellationToken);
+            return roles.Select(UserMappings.ToDto).ToList() as IReadOnlyList<RoleDto>;
+        });
+
+        return cached ?? [];
     }
 }

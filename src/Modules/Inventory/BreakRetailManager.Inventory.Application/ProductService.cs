@@ -2,6 +2,7 @@ using BreakRetailManager.BuildingBlocks.Pagination;
 using BreakRetailManager.Inventory.Contracts;
 using BreakRetailManager.Inventory.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace BreakRetailManager.Inventory.Application;
 
@@ -9,11 +10,16 @@ public sealed class ProductService
 {
     private readonly IProductRepository _productRepository;
     private readonly ILocationStockRepository _locationStockRepository;
+    private readonly IMemoryCache _cache;
 
-    public ProductService(IProductRepository productRepository, ILocationStockRepository locationStockRepository)
+    public ProductService(
+        IProductRepository productRepository,
+        ILocationStockRepository locationStockRepository,
+        IMemoryCache cache)
     {
         _productRepository = productRepository;
         _locationStockRepository = locationStockRepository;
+        _cache = cache;
     }
 
     public async Task<IReadOnlyList<ProductDto>> GetProductsAsync(CancellationToken cancellationToken)
@@ -48,6 +54,13 @@ public sealed class ProductService
 
     public async Task<ProductDto?> GetProductByBarcodeAsync(string barcode, CancellationToken cancellationToken)
     {
+        var cacheKey = $"product-barcode:{barcode}";
+
+        if (_cache.TryGetValue(cacheKey, out ProductDto? cached))
+        {
+            return cached;
+        }
+
         var product = await _productRepository.GetByBarcodeAsync(barcode, cancellationToken);
         if (product is null)
         {
@@ -57,9 +70,12 @@ public sealed class ProductService
         var dto = InventoryMappings.ToDto(product);
         var stockTotals = await _locationStockRepository.GetTotalsByProductAsync([product.Id], cancellationToken);
 
-        return stockTotals.TryGetValue(product.Id, out var total)
+        var result = stockTotals.TryGetValue(product.Id, out var total)
             ? dto with { StockQuantity = total, IsLowStock = total <= dto.ReorderLevel }
             : dto;
+
+        _cache.Set(cacheKey, result, TimeSpan.FromSeconds(30));
+        return result;
     }
 
     public async Task<IReadOnlyList<ProductDto>> GetLowStockProductsAsync(CancellationToken cancellationToken)
@@ -80,6 +96,7 @@ public sealed class ProductService
         await _productRepository.AddAsync(product, cancellationToken);
         await _productRepository.SaveChangesAsync(cancellationToken);
 
+        _cache.Remove($"product-barcode:{product.Barcode}");
         return InventoryMappings.ToDto(product);
     }
 
@@ -91,6 +108,7 @@ public sealed class ProductService
             return null;
         }
 
+        var oldBarcode = product.Barcode;
         product.UpdateDetails(
             request.Barcode,
             request.Name,
@@ -102,6 +120,12 @@ public sealed class ProductService
             request.ProviderId);
 
         await _productRepository.SaveChangesAsync(cancellationToken);
+
+        _cache.Remove($"product-barcode:{oldBarcode}");
+        if (oldBarcode != request.Barcode)
+        {
+            _cache.Remove($"product-barcode:{request.Barcode}");
+        }
 
         return InventoryMappings.ToDto(product);
     }

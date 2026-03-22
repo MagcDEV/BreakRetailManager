@@ -5,6 +5,7 @@ using BreakRetailManager.AccountsControl.Infrastructure.Data;
 using BreakRetailManager.BuildingBlocks.Modules;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -40,19 +41,19 @@ public sealed class AccountsControlModule : IModule
         group.MapGet("/summary", async (AccountsService service, CancellationToken cancellationToken) =>
             Results.Ok(await service.GetPublicSummaryAsync(cancellationToken)))
             .Produces<PublicSummaryDto>()
-            .CacheOutput("Short")
+            .CacheOutput("AccountsSummary")
             .AllowAnonymous();
 
         group.MapGet("/employees", async (AccountsService service, CancellationToken cancellationToken) =>
             Results.Ok(await service.GetActiveAccountsByTypeAsync(AccountType.Employee, cancellationToken)))
             .Produces<IReadOnlyList<AccountOptionDto>>()
-            .CacheOutput("Medium")
+            .CacheOutput("AccountsList")
             .AllowAnonymous();
 
         group.MapGet("/expenses", async (AccountsService service, CancellationToken cancellationToken) =>
             Results.Ok(await service.GetActiveAccountsByTypeAsync(AccountType.GeneralExpense, cancellationToken)))
             .Produces<IReadOnlyList<AccountOptionDto>>()
-            .CacheOutput("Medium")
+            .CacheOutput("AccountsList")
             .AllowAnonymous();
 
         group.MapGet("/employees/{accountId:guid}", async (Guid accountId, AccountsService service, CancellationToken cancellationToken) =>
@@ -80,12 +81,19 @@ public sealed class AccountsControlModule : IModule
             Guid accountId,
             CreateMovementRequest request,
             AccountsService service,
+            IOutputCacheStore outputCacheStore,
             ILogger<AccountsControlModule> logger,
             CancellationToken cancellationToken) =>
         {
             try
             {
                 var movement = await service.CreateEmployeeMovementAsync(accountId, request, cancellationToken);
+                if (movement is not null)
+                {
+                    await outputCacheStore.EvictByTagAsync("accounts-summary", cancellationToken);
+                    await outputCacheStore.EvictByTagAsync("accounts-list", cancellationToken);
+                }
+
                 return movement is null
                     ? Results.NotFound()
                     : Results.Created($"/api/accounts/employees/{accountId}/movements/{movement.Id}", movement);
@@ -136,12 +144,19 @@ public sealed class AccountsControlModule : IModule
             Guid accountId,
             CreateMovementRequest request,
             AccountsService service,
+            IOutputCacheStore outputCacheStore,
             ILogger<AccountsControlModule> logger,
             CancellationToken cancellationToken) =>
         {
             try
             {
                 var movement = await service.CreateExpenseMovementAsync(accountId, request, cancellationToken);
+                if (movement is not null)
+                {
+                    await outputCacheStore.EvictByTagAsync("accounts-summary", cancellationToken);
+                    await outputCacheStore.EvictByTagAsync("accounts-list", cancellationToken);
+                }
+
                 return movement is null
                     ? Results.NotFound()
                     : Results.Created($"/api/accounts/expenses/{accountId}/movements/{movement.Id}", movement);
@@ -185,12 +200,15 @@ public sealed class AccountsControlModule : IModule
             HttpContext httpContext,
             CreateAccountRequest request,
             AccountsService service,
+            IOutputCacheStore outputCacheStore,
             ILogger<AccountsControlModule> logger,
             CancellationToken cancellationToken) =>
         {
             try
             {
                 var created = await service.CreateAccountAsync(request, ExtractObjectId(httpContext.User), cancellationToken);
+                await outputCacheStore.EvictByTagAsync("accounts-summary", cancellationToken);
+                await outputCacheStore.EvictByTagAsync("accounts-list", cancellationToken);
                 return Results.Created($"/api/accounts/admin/accounts/{created.Id}", created);
             }
             catch (ArgumentException ex)
@@ -217,9 +235,16 @@ public sealed class AccountsControlModule : IModule
             Guid accountId,
             HttpContext httpContext,
             AccountsService service,
+            IOutputCacheStore outputCacheStore,
             CancellationToken cancellationToken) =>
         {
             var deleted = await service.DeactivateAccountAsync(accountId, ExtractObjectId(httpContext.User), cancellationToken);
+            if (deleted)
+            {
+                await outputCacheStore.EvictByTagAsync("accounts-summary", cancellationToken);
+                await outputCacheStore.EvictByTagAsync("accounts-list", cancellationToken);
+            }
+
             return deleted ? Results.NoContent() : Results.NotFound();
         })
             .Produces(StatusCodes.Status204NoContent);
@@ -229,6 +254,7 @@ public sealed class AccountsControlModule : IModule
             HttpContext httpContext,
             CreateAdminAdjustmentRequest request,
             AccountsService service,
+            IOutputCacheStore outputCacheStore,
             ILogger<AccountsControlModule> logger,
             CancellationToken cancellationToken) =>
         {
@@ -239,6 +265,12 @@ public sealed class AccountsControlModule : IModule
                     request,
                     ExtractObjectId(httpContext.User),
                     cancellationToken);
+
+                if (created is not null)
+                {
+                    await outputCacheStore.EvictByTagAsync("accounts-summary", cancellationToken);
+                    await outputCacheStore.EvictByTagAsync("accounts-list", cancellationToken);
+                }
 
                 return created is null
                     ? Results.NotFound()

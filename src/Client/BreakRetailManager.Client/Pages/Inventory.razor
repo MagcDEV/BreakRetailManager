@@ -436,7 +436,10 @@
 
             await InvokeAsync(async () =>
             {
-                await LoadDataAsync();
+                // Only reload products — stock changes don't affect providers or locations
+                InventoryApi.InvalidateProductsCache();
+                products.Clear();
+                products.AddRange(await InventoryApi.GetProductsAsync(cancellationToken));
 
                 if (activeTab == Tab.LowStock)
                 {

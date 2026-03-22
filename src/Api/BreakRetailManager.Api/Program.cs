@@ -16,6 +16,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
 builder.Services.AddSignalR();
+builder.Services.AddMemoryCache();
 
 builder.Services.AddResponseCompression(options =>
 {
@@ -25,9 +26,13 @@ builder.Services.AddResponseCompression(options =>
 builder.Services.AddOutputCache(options =>
 {
     options.AddBasePolicy(builder => builder.NoCache());
-    options.AddPolicy("Short", builder => builder.Expire(TimeSpan.FromSeconds(30)).Tag("short"));
-    options.AddPolicy("Medium", builder => builder.Expire(TimeSpan.FromSeconds(60)).Tag("medium"));
-    options.AddPolicy("Long", builder => builder.Expire(TimeSpan.FromSeconds(120)).Tag("long"));
+    options.AddPolicy("Products", builder => builder.Expire(TimeSpan.FromSeconds(30)).Tag("products"));
+    options.AddPolicy("ActiveOffers", builder => builder.Expire(TimeSpan.FromSeconds(30)).Tag("active-offers"));
+    options.AddPolicy("Providers", builder => builder.Expire(TimeSpan.FromSeconds(60)).Tag("providers"));
+    options.AddPolicy("Locations", builder => builder.Expire(TimeSpan.FromSeconds(60)).Tag("locations"));
+    options.AddPolicy("Roles", builder => builder.Expire(TimeSpan.FromSeconds(120)).Tag("roles"));
+    options.AddPolicy("AccountsSummary", builder => builder.Expire(TimeSpan.FromSeconds(30)).Tag("accounts-summary"));
+    options.AddPolicy("AccountsList", builder => builder.Expire(TimeSpan.FromSeconds(60)).Tag("accounts-list"));
 });
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

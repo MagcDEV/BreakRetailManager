@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(az sql:*)",
+      "Bash(mkdir -p \"C:/Users/manue/source/repo/BreakRetailManager/.claude/skills\")",
+      "Bash(cp -r \"C:/Users/manue/source/repo/BreakRetailManager/.github/skills/brm-azure\" \"C:/Users/manue/source/repo/BreakRetailManager/.claude/skills/\")",
+      "Bash(cp -r \"C:/Users/manue/source/repo/BreakRetailManager/.github/skills/invite-entra-guest\" \"C:/Users/manue/source/repo/BreakRetailManager/.claude/skills/\")"
+    ]
+  }
+}

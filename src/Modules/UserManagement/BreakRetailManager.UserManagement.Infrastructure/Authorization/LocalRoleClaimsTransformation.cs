@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using BreakRetailManager.UserManagement.Application;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BreakRetailManager.UserManagement.Infrastructure.Authorization;
@@ -13,10 +14,12 @@ namespace BreakRetailManager.UserManagement.Infrastructure.Authorization;
 public sealed class LocalRoleClaimsTransformation : IClaimsTransformation
 {
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IMemoryCache _cache;
 
-    public LocalRoleClaimsTransformation(IServiceScopeFactory scopeFactory)
+    public LocalRoleClaimsTransformation(IServiceScopeFactory scopeFactory, IMemoryCache cache)
     {
         _scopeFactory = scopeFactory;
+        _cache = cache;
     }
 
     public async Task<ClaimsPrincipal> TransformAsync(ClaimsPrincipal principal)
@@ -42,18 +45,29 @@ public sealed class LocalRoleClaimsTransformation : IClaimsTransformation
             return principal;
         }
 
-        using var scope = _scopeFactory.CreateScope();
-        var repository = scope.ServiceProvider.GetRequiredService<IUserRepository>();
-        var user = await repository.GetByObjectIdAsync(objectId);
+        var cacheKey = $"user-roles:{objectId}";
 
-        if (user is null)
+        if (!_cache.TryGetValue(cacheKey, out string[]? roleNames))
         {
-            return principal;
+            using var scope = _scopeFactory.CreateScope();
+            var repository = scope.ServiceProvider.GetRequiredService<IUserRepository>();
+            var user = await repository.GetByObjectIdAsync(objectId);
+
+            if (user is null)
+            {
+                return principal;
+            }
+
+            roleNames = user.Roles.Select(r => r.Name).ToArray();
+            _cache.Set(cacheKey, roleNames, new MemoryCacheEntryOptions
+            {
+                SlidingExpiration = TimeSpan.FromMinutes(5)
+            });
         }
 
-        foreach (var role in user.Roles)
+        foreach (var roleName in roleNames!)
         {
-            identity.AddClaim(new Claim(identity.RoleClaimType, role.Name, ClaimValueTypes.String, "LocalRoles"));
+            identity.AddClaim(new Claim(identity.RoleClaimType, roleName, ClaimValueTypes.String, "LocalRoles"));
         }
 
         return principal;

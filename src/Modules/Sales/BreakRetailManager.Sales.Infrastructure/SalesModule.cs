@@ -7,6 +7,7 @@ using BreakRetailManager.Sales.Infrastructure.Arca;
 using BreakRetailManager.Sales.Infrastructure.Data;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -132,7 +133,7 @@ public sealed class SalesModule : IModule
         group.MapGet("/offers/active", async (OfferService service, CancellationToken cancellationToken) =>
             Results.Ok(await service.GetActiveOffersAsync(cancellationToken)))
             .Produces<IReadOnlyList<OfferDto>>()
-            .CacheOutput("Short");
+            .CacheOutput("ActiveOffers");
 
         group.MapGet("/offers/{id:guid}", async (Guid id, OfferService service, CancellationToken cancellationToken) =>
         {
@@ -144,11 +145,12 @@ public sealed class SalesModule : IModule
 
         group.MapPost(
                 "/offers",
-                async (CreateOfferRequest request, OfferService service, ILogger<SalesModule> logger, CancellationToken cancellationToken) =>
+                async (CreateOfferRequest request, OfferService service, IOutputCacheStore outputCacheStore, ILogger<SalesModule> logger, CancellationToken cancellationToken) =>
                 {
                     try
                     {
                         var created = await service.CreateOfferAsync(request, cancellationToken);
+                        await outputCacheStore.EvictByTagAsync("active-offers", cancellationToken);
                         return Results.Created($"/api/sales/offers/{created.Id}", created);
                     }
                     catch (ArgumentException ex)
@@ -166,11 +168,12 @@ public sealed class SalesModule : IModule
 
         group.MapPut(
                 "/offers/{id:guid}",
-                async (Guid id, UpdateOfferRequest request, OfferService service, ILogger<SalesModule> logger, CancellationToken cancellationToken) =>
+                async (Guid id, UpdateOfferRequest request, OfferService service, IOutputCacheStore outputCacheStore, ILogger<SalesModule> logger, CancellationToken cancellationToken) =>
                 {
                     try
                     {
                         var updated = await service.UpdateOfferAsync(id, request, cancellationToken);
+                        await outputCacheStore.EvictByTagAsync("active-offers", cancellationToken);
                         return updated is null ? Results.NotFound() : Results.Ok(updated);
                     }
                     catch (ArgumentException ex)
@@ -186,25 +189,28 @@ public sealed class SalesModule : IModule
             .ProducesValidationProblem(400)
             .RequireAuthorization("Manager");
 
-        group.MapDelete("/offers/{id:guid}", async (Guid id, OfferService service, CancellationToken cancellationToken) =>
+        group.MapDelete("/offers/{id:guid}", async (Guid id, OfferService service, IOutputCacheStore outputCacheStore, CancellationToken cancellationToken) =>
         {
             var deleted = await service.DeleteOfferAsync(id, cancellationToken);
+            await outputCacheStore.EvictByTagAsync("active-offers", cancellationToken);
             return deleted ? Results.NoContent() : Results.NotFound();
         })
             .Produces(StatusCodes.Status204NoContent)
             .RequireAuthorization("Manager");
 
-        group.MapPost("/offers/{id:guid}/activate", async (Guid id, OfferService service, CancellationToken cancellationToken) =>
+        group.MapPost("/offers/{id:guid}/activate", async (Guid id, OfferService service, IOutputCacheStore outputCacheStore, CancellationToken cancellationToken) =>
         {
             var offer = await service.ActivateOfferAsync(id, cancellationToken);
+            await outputCacheStore.EvictByTagAsync("active-offers", cancellationToken);
             return offer is null ? Results.NotFound() : Results.Ok(offer);
         })
             .Produces<OfferDto>()
             .RequireAuthorization("Manager");
 
-        group.MapPost("/offers/{id:guid}/deactivate", async (Guid id, OfferService service, CancellationToken cancellationToken) =>
+        group.MapPost("/offers/{id:guid}/deactivate", async (Guid id, OfferService service, IOutputCacheStore outputCacheStore, CancellationToken cancellationToken) =>
         {
             var offer = await service.DeactivateOfferAsync(id, cancellationToken);
+            await outputCacheStore.EvictByTagAsync("active-offers", cancellationToken);
             return offer is null ? Results.NotFound() : Results.Ok(offer);
         })
             .Produces<OfferDto>()

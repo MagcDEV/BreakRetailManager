@@ -16,15 +16,13 @@ public sealed class InventoryApiClient
     private CacheEntry<IReadOnlyList<ProductDto>>? _productsCache;
     private CacheEntry<IReadOnlyList<ProviderDto>>? _providersCache;
     private CacheEntry<IReadOnlyList<LocationDto>>? _locationsCache;
+    private readonly Dictionary<string, CacheEntry<ProductDto>> _barcodeCache = new();
 
     private static readonly TimeSpan ProductsCacheTtl = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan ProvidersCacheTtl = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan LocationsCacheTtl = TimeSpan.FromSeconds(60);
-
-    private sealed record CacheEntry<T>(T Data, DateTime ExpiresAt)
-    {
-        public bool IsValid => DateTime.UtcNow < ExpiresAt;
-    }
+    private static readonly TimeSpan BarcodeCacheTtl = TimeSpan.FromSeconds(60);
+    private const int MaxBarcodeCacheSize = 200;
 
     public InventoryApiClient(HttpClient httpClient, ILogger<InventoryApiClient> logger)
     {
@@ -67,9 +65,15 @@ public sealed class InventoryApiClient
         }
     }
 
-    public async Task<ProductDto?> CreateProductAsync(CreateProductRequest request, CancellationToken cancellationToken = default)
+    public void InvalidateProductsCache()
     {
         _productsCache = null;
+        _barcodeCache.Clear();
+    }
+
+    public async Task<ProductDto?> CreateProductAsync(CreateProductRequest request, CancellationToken cancellationToken = default)
+    {
+        InvalidateProductsCache();
         try
         {
             var response = await _httpClient.PostAsJsonAsync(ProductsEndpoint, request, cancellationToken);
@@ -85,7 +89,7 @@ public sealed class InventoryApiClient
 
     public async Task<ProductDto?> UpdateProductAsync(Guid id, UpdateProductRequest request, CancellationToken cancellationToken = default)
     {
-        _productsCache = null;
+        InvalidateProductsCache();
         try
         {
             var response = await _httpClient.PutAsJsonAsync($"{ProductsEndpoint}/{id}", request, cancellationToken);
@@ -154,13 +158,29 @@ public sealed class InventoryApiClient
 
     public async Task<ProductDto?> GetProductByBarcodeAsync(string barcode, CancellationToken cancellationToken = default)
     {
+        if (_barcodeCache.TryGetValue(barcode, out var cached) && cached.IsValid)
+        {
+            return cached.Data;
+        }
+
         try
         {
-            return await _httpClient.GetFromJsonAsync<ProductDto>($"{ProductsEndpoint}/barcode/{Uri.EscapeDataString(barcode)}", cancellationToken);
+            var product = await _httpClient.GetFromJsonAsync<ProductDto>($"{ProductsEndpoint}/barcode/{Uri.EscapeDataString(barcode)}", cancellationToken);
+            if (product is not null)
+            {
+                if (_barcodeCache.Count >= MaxBarcodeCacheSize)
+                {
+                    _barcodeCache.Clear();
+                }
+
+                _barcodeCache[barcode] = new CacheEntry<ProductDto>(product, DateTime.UtcNow.Add(BarcodeCacheTtl));
+            }
+
+            return product;
         }
         catch (HttpRequestException)
         {
-            return null;
+            return _barcodeCache.TryGetValue(barcode, out var fallback) ? fallback.Data : null;
         }
     }
 

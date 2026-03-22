@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="*" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Abstractions" Version="10.0.5" />
   </ItemGroup>
 
   <PropertyGroup>

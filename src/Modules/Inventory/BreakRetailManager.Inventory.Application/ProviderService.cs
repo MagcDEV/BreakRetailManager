@@ -1,21 +1,32 @@
 using BreakRetailManager.BuildingBlocks.Pagination;
 using BreakRetailManager.Inventory.Contracts;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace BreakRetailManager.Inventory.Application;
 
 public sealed class ProviderService
 {
-    private readonly IProviderRepository _providerRepository;
+    private const string ProvidersCacheKey = "providers-all";
 
-    public ProviderService(IProviderRepository providerRepository)
+    private readonly IProviderRepository _providerRepository;
+    private readonly IMemoryCache _cache;
+
+    public ProviderService(IProviderRepository providerRepository, IMemoryCache cache)
     {
         _providerRepository = providerRepository;
+        _cache = cache;
     }
 
     public async Task<IReadOnlyList<ProviderDto>> GetProvidersAsync(CancellationToken cancellationToken)
     {
-        var providers = await _providerRepository.GetAllAsync(cancellationToken);
-        return providers.Select(InventoryMappings.ToDto).ToList();
+        var cached = await _cache.GetOrCreateAsync(ProvidersCacheKey, async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
+            var providers = await _providerRepository.GetAllAsync(cancellationToken);
+            return providers.Select(InventoryMappings.ToDto).ToList() as IReadOnlyList<ProviderDto>;
+        });
+
+        return cached ?? [];
     }
 
     public async Task<PagedResult<ProviderDto>> GetProvidersPagedAsync(
@@ -37,6 +48,7 @@ public sealed class ProviderService
         var provider = InventoryMappings.ToProvider(request);
         await _providerRepository.AddAsync(provider, cancellationToken);
         await _providerRepository.SaveChangesAsync(cancellationToken);
+        _cache.Remove(ProvidersCacheKey);
         return InventoryMappings.ToDto(provider);
     }
 
@@ -56,6 +68,7 @@ public sealed class ProviderService
             request.Address);
 
         await _providerRepository.SaveChangesAsync(cancellationToken);
+        _cache.Remove(ProvidersCacheKey);
         return InventoryMappings.ToDto(provider);
     }
 }

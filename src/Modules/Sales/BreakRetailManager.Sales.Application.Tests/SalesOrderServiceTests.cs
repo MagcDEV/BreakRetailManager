@@ -1,6 +1,7 @@
 ﻿using BreakRetailManager.BuildingBlocks.Inventory;
 using BreakRetailManager.Sales.Contracts;
 using BreakRetailManager.Sales.Domain.Entities;
+using Microsoft.Extensions.Caching.Memory;
 using DomainOfferDiscountType = BreakRetailManager.Sales.Domain.OfferDiscountType;
 
 namespace BreakRetailManager.Sales.Application.Tests;
@@ -156,7 +157,7 @@ public sealed class SalesOrderServiceTests
         fiscalService = new FakeArcaFiscalService();
         var offerRepository = new InMemoryOfferRepository(offers);
         var inventoryStockService = new NoOpInventoryStockService();
-        return new SalesOrderService(orderRepository, offerRepository, fiscalService, inventoryStockService);
+        return new SalesOrderService(orderRepository, offerRepository, fiscalService, inventoryStockService, new MemoryCache(new MemoryCacheOptions()));
     }
 
     private static CreateSalesOrderRequest CreateRequest(

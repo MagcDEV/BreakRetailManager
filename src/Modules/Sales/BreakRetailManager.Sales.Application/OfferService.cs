@@ -1,14 +1,20 @@
 using BreakRetailManager.Sales.Contracts;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace BreakRetailManager.Sales.Application;
 
 public sealed class OfferService
 {
-    private readonly IOfferRepository _repository;
+    private const string ActiveOffersCacheKey = "active-offers";
+    internal const string ActiveOffersDomainCacheKey = "active-offers-domain";
 
-    public OfferService(IOfferRepository repository)
+    private readonly IOfferRepository _repository;
+    private readonly IMemoryCache _cache;
+
+    public OfferService(IOfferRepository repository, IMemoryCache cache)
     {
         _repository = repository;
+        _cache = cache;
     }
 
     public async Task<IReadOnlyList<OfferDto>> GetOffersAsync(CancellationToken cancellationToken = default)
@@ -19,8 +25,14 @@ public sealed class OfferService
 
     public async Task<IReadOnlyList<OfferDto>> GetActiveOffersAsync(CancellationToken cancellationToken = default)
     {
-        var offers = await _repository.GetActiveAsync(cancellationToken);
-        return offers.Select(OfferMappings.ToDto).ToList();
+        var cached = await _cache.GetOrCreateAsync(ActiveOffersCacheKey, async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(2);
+            var offers = await _repository.GetActiveAsync(cancellationToken);
+            return offers.Select(OfferMappings.ToDto).ToList() as IReadOnlyList<OfferDto>;
+        });
+
+        return cached ?? [];
     }
 
     public async Task<OfferDto?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -34,6 +46,7 @@ public sealed class OfferService
         var offer = OfferMappings.FromCreateRequest(request);
         await _repository.AddAsync(offer, cancellationToken);
         await _repository.SaveChangesAsync(cancellationToken);
+        InvalidateOfferCaches();
         return OfferMappings.ToDto(offer);
     }
 
@@ -47,6 +60,7 @@ public sealed class OfferService
 
         OfferMappings.ApplyUpdate(offer, request);
         await _repository.SaveChangesAsync(cancellationToken);
+        InvalidateOfferCaches();
         return OfferMappings.ToDto(offer);
     }
 
@@ -60,6 +74,7 @@ public sealed class OfferService
 
         offer.Activate();
         await _repository.SaveChangesAsync(cancellationToken);
+        InvalidateOfferCaches();
         return OfferMappings.ToDto(offer);
     }
 
@@ -73,6 +88,7 @@ public sealed class OfferService
 
         offer.Deactivate();
         await _repository.SaveChangesAsync(cancellationToken);
+        InvalidateOfferCaches();
         return OfferMappings.ToDto(offer);
     }
 
@@ -86,6 +102,13 @@ public sealed class OfferService
 
         _repository.Remove(offer);
         await _repository.SaveChangesAsync(cancellationToken);
+        InvalidateOfferCaches();
         return true;
+    }
+
+    private void InvalidateOfferCaches()
+    {
+        _cache.Remove(ActiveOffersCacheKey);
+        _cache.Remove(ActiveOffersDomainCacheKey);
     }
 }
