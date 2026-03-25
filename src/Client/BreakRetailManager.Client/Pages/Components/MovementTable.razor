@@ -6,7 +6,8 @@
 }
 else
 {
-    <div class="table-responsive">
+    @* Desktop: standard table *@
+    <div class="table-responsive d-none d-md-block">
         <table class="table table-sm align-middle">
             <thead>
             <tr>
@@ -42,6 +43,33 @@ else
             }
             </tbody>
         </table>
+    </div>
+
+    @* Mobile: card-based layout *@
+    <div class="d-md-none movement-card-list">
+        @foreach (var movement in Movements)
+        {
+            <div class="movement-card">
+                <div class="d-flex justify-content-between align-items-start mb-1">
+                    <span class="fw-semibold text-truncate me-2">@movement.Description</span>
+                    <span class="fw-semibold text-nowrap @(movement.Amount < 0 ? "text-success" : "text-danger")">
+                        @movement.Amount.ToString("C", ArsCulture)
+                    </span>
+                </div>
+                <div class="small text-muted d-flex flex-wrap gap-2">
+                    <span>@movement.CreatedAt.LocalDateTime.ToString("g")</span>
+                    @if (!string.IsNullOrWhiteSpace(movement.Shift))
+                    {
+                        <span>· @movement.Shift</span>
+                    }
+                    <span>· @movement.CreatedByRole</span>
+                    @if (ShowAccountColumns)
+                    {
+                        <span>· @movement.AccountName</span>
+                    }
+                </div>
+            </div>
+        }
     </div>
 }
 

@@ -1,0 +1,65 @@
+/* ── Expenses page – scoped responsive styles ─────────── */
+
+/* Tab bar: horizontally scrollable on narrow screens */
+.expenses-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;           /* Firefox */
+}
+
+.expenses-tabs::-webkit-scrollbar {
+    display: none;                   /* Chrome / Safari */
+}
+
+.expenses-tabs .nav-link {
+    white-space: nowrap;
+}
+
+/* Account card grid */
+.account-card {
+    cursor: pointer;
+    border: 1px solid var(--br-border, #dee2e6);
+    transition: box-shadow 0.15s ease, border-color 0.15s ease;
+    background: none;
+    padding: 0;
+}
+
+.account-card:hover,
+.account-card:focus-visible {
+    border-color: var(--br-gold, #c9a96e);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    outline: none;
+}
+
+.account-icon {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 600;
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.min-w-0 {
+    min-width: 0;   /* allow text-truncate to work inside flex */
+}
+
+/* ── Mobile-first responsive adjustments ──────────────── */
+
+@media (max-width: 575.98px) {
+    /* Summary card balance smaller on phones */
+    .display-6 {
+        font-size: 1.5rem;
+    }
+
+    /* Stack form columns */
+    .row.g-3 > [class*="col-sm-"] {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+}

@@ -1,0 +1,18 @@
+/* ── MovementTable – mobile card layout ────────────────── */
+
+.movement-card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.movement-card {
+    padding: 0.75rem;
+    border: 1px solid var(--br-border, #dee2e6);
+    border-radius: 0.375rem;
+    background-color: #fff;
+}
+
+.movement-card:last-child {
+    margin-bottom: 0;
+}

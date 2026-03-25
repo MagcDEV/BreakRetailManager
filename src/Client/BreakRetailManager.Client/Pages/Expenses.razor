@@ -1,0 +1,366 @@
+@page "/expenses"
+@using System.ComponentModel.DataAnnotations
+@using System.Globalization
+@using BreakRetailManager.AccountsControl.Contracts
+@attribute [Authorize]
+@inject AccountsControlApiClient AccountsApi
+
+<PageTitle>Expenses</PageTitle>
+
+<h1>Expenses</h1>
+
+@if (!string.IsNullOrWhiteSpace(statusMessage))
+{
+    <div class="alert @statusCss alert-dismissible" role="alert">
+        @statusMessage
+        <button type="button" class="btn-close" @onclick="() => statusMessage = null"></button>
+    </div>
+}
+
+<ul class="nav nav-tabs mb-4 expenses-tabs">
+    <li class="nav-item">
+        <button class="nav-link @(activeTab == Tab.Employee ? "active" : "")"
+                @onclick="() => SwitchTab(Tab.Employee)">
+            Employee Accounts
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link @(activeTab == Tab.Expense ? "active" : "")"
+                @onclick="() => SwitchTab(Tab.Expense)">
+            General Expenses
+        </button>
+    </li>
+</ul>
+
+@if (isLoadingAccounts)
+{
+    <p><em>Loading accounts...</em></p>
+}
+else if (selectedAccount is not null)
+{
+    @* ── Account detail view ──────────────────────────── *@
+    <button class="btn btn-link px-0 mb-3" @onclick="ClearSelection">
+        ← Back to @(activeTab == Tab.Employee ? "employee accounts" : "expense accounts")
+    </button>
+
+    @if (isLoadingDetail)
+    {
+        <p><em>Loading account details...</em></p>
+    }
+    else
+    {
+        <div class="row g-4">
+            @* Summary card *@
+            <div class="col-12 col-md-5 col-lg-4">
+                <div class="card h-100">
+                    <div class="card-header bg-dark text-white">
+                        <strong>@selectedAccount.Name</strong>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted mb-2">
+                            @(activeTab == Tab.Employee ? "Current balance" : "Current expense balance")
+                        </p>
+                        <div class="display-6 @(selectedAccount.Balance > 0 ? "text-danger" : "text-success")">
+                            @selectedAccount.Balance.ToString("C", ArsCulture)
+                        </div>
+                        <div class="small text-muted mt-3">
+                            <div>Movements: @selectedAccount.MovementCount</div>
+                            <div>Last activity: @(selectedAccount.LastActivityAt?.LocalDateTime.ToString("g") ?? "No activity yet")</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @* Register form + history *@
+            <div class="col-12 col-md-7 col-lg-8">
+                <div class="alert alert-warning" role="alert">
+                    @if (activeTab == Tab.Employee)
+                    {
+                        <text>You can only add new positive debt entries for this employee account. Existing movements cannot be edited or deleted.</text>
+                    }
+                    else
+                    {
+                        <text>You can only add new positive expense entries for this account. Existing movements cannot be edited or deleted.</text>
+                    }
+                </div>
+
+                @* ── Employee charge form ──── *@
+                @if (activeTab == Tab.Employee)
+                {
+                    <div class="card mb-4">
+                        <div class="card-header"><strong>Register debt</strong></div>
+                        <div class="card-body">
+                            <EditForm Model="employeeForm" OnValidSubmit="SubmitEmployeeAsync">
+                                <DataAnnotationsValidator />
+                                <ValidationSummary />
+
+                                <div class="mb-3">
+                                    <label class="form-label">Description</label>
+                                    <InputText class="form-control" @bind-Value="employeeForm.Description" />
+                                </div>
+                                <div class="row g-3">
+                                    <div class="col-12 col-sm-6">
+                                        <label class="form-label">Amount</label>
+                                        <InputNumber class="form-control" @bind-Value="employeeForm.Amount" />
+                                    </div>
+                                    <div class="col-12 col-sm-6">
+                                        <label class="form-label">Shift</label>
+                                        <InputText class="form-control" @bind-Value="employeeForm.Shift" />
+                                    </div>
+                                </div>
+                                <button class="btn btn-primary mt-3" type="submit" disabled="@isSubmitting">
+                                    @(isSubmitting ? "Saving..." : "Add debt")
+                                </button>
+                            </EditForm>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    @* ── Expense form ──── *@
+                    <div class="card mb-4">
+                        <div class="card-header"><strong>Register expense</strong></div>
+                        <div class="card-body">
+                            <EditForm Model="expenseForm" OnValidSubmit="SubmitExpenseAsync">
+                                <DataAnnotationsValidator />
+                                <ValidationSummary />
+
+                                <div class="mb-3">
+                                    <label class="form-label">Description</label>
+                                    <InputText class="form-control" @bind-Value="expenseForm.Description" />
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Amount</label>
+                                    <InputNumber class="form-control" @bind-Value="expenseForm.Amount" />
+                                </div>
+                                <button class="btn btn-primary" type="submit" disabled="@isSubmitting">
+                                    @(isSubmitting ? "Saving..." : "Add expense")
+                                </button>
+                            </EditForm>
+                        </div>
+                    </div>
+                }
+
+                @* ── Movement history ──── *@
+                <div class="card">
+                    <div class="card-header"><strong>Movement history</strong></div>
+                    <div class="card-body">
+                        <MovementTable Movements="movements"
+                                       EmptyMessage="@(activeTab == Tab.Employee ? "No debt movements yet." : "No expense movements yet.")" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+else
+{
+    @* ── Account list view ────────────────────────────── *@
+    var accounts = activeTab == Tab.Employee ? employeeAccounts : expenseAccounts;
+
+    @if (accounts.Count == 0)
+    {
+        <div class="alert alert-info" role="alert">
+            No @(activeTab == Tab.Employee ? "employee" : "expense") accounts available.
+        </div>
+    }
+    else
+    {
+        <div class="row g-3 account-card-grid">
+            @foreach (var acct in accounts)
+            {
+                <div class="col-12 col-sm-6 col-lg-4">
+                    <button class="card account-card h-100 w-100 text-start" @onclick="() => SelectAccount(acct)">
+                        <div class="card-body d-flex align-items-center gap-3">
+                            <div class="account-icon @(activeTab == Tab.Employee ? "bg-primary" : "bg-secondary")">
+                                @acct.Name[0]
+                            </div>
+                            <div class="flex-grow-1 min-w-0">
+                                <div class="fw-semibold text-truncate">@acct.Name</div>
+                                <div class="small text-muted">
+                                    @(activeTab == Tab.Employee ? "Employee" : "Expense") account
+                                </div>
+                            </div>
+                            <span class="text-muted">›</span>
+                        </div>
+                    </button>
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+    private static readonly CultureInfo ArsCulture = new("es-AR");
+
+    private enum Tab { Employee, Expense }
+
+    private Tab activeTab = Tab.Employee;
+    private IReadOnlyList<AccountOptionDto> employeeAccounts = [];
+    private IReadOnlyList<AccountOptionDto> expenseAccounts = [];
+    private AccountSummaryDto? selectedAccount;
+    private IReadOnlyList<MovementDto> movements = [];
+
+    private EmployeeMovementFormModel employeeForm = new();
+    private ExpenseMovementFormModel expenseForm = new();
+
+    private bool isLoadingAccounts = true;
+    private bool isLoadingDetail;
+    private bool isSubmitting;
+    private string? statusMessage;
+    private string statusCss = "alert-info";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var employeesTask = AccountsApi.GetEmployeeAccountsAsync();
+        var expensesTask = AccountsApi.GetExpenseAccountsAsync();
+        await Task.WhenAll(employeesTask, expensesTask);
+
+        employeeAccounts = await employeesTask;
+        expenseAccounts = await expensesTask;
+        isLoadingAccounts = false;
+    }
+
+    private void SwitchTab(Tab tab)
+    {
+        if (activeTab == tab) return;
+        activeTab = tab;
+        selectedAccount = null;
+        movements = [];
+        statusMessage = null;
+        employeeForm = new();
+        expenseForm = new();
+    }
+
+    private async Task SelectAccount(AccountOptionDto option)
+    {
+        isLoadingDetail = true;
+        statusMessage = null;
+        StateHasChanged();
+
+        if (activeTab == Tab.Employee)
+        {
+            var summaryTask = AccountsApi.GetEmployeeAccountSummaryAsync(option.Id);
+            var movementsTask = AccountsApi.GetEmployeeMovementsAsync(option.Id);
+            await Task.WhenAll(summaryTask, movementsTask);
+            selectedAccount = await summaryTask;
+            movements = selectedAccount is null ? [] : await movementsTask;
+        }
+        else
+        {
+            var summaryTask = AccountsApi.GetExpenseAccountSummaryAsync(option.Id);
+            var movementsTask = AccountsApi.GetExpenseMovementsAsync(option.Id);
+            await Task.WhenAll(summaryTask, movementsTask);
+            selectedAccount = await summaryTask;
+            movements = selectedAccount is null ? [] : await movementsTask;
+        }
+
+        employeeForm = new();
+        expenseForm = new();
+        isLoadingDetail = false;
+    }
+
+    private void ClearSelection()
+    {
+        selectedAccount = null;
+        movements = [];
+        statusMessage = null;
+    }
+
+    private async Task SubmitEmployeeAsync()
+    {
+        if (selectedAccount is null || !employeeForm.Amount.HasValue) return;
+
+        isSubmitting = true;
+        statusMessage = null;
+        StateHasChanged();
+
+        var created = await AccountsApi.CreateEmployeeMovementAsync(
+            selectedAccount.Id,
+            new CreateMovementRequest(employeeForm.Description, employeeForm.Amount.Value, employeeForm.Shift));
+
+        isSubmitting = false;
+
+        if (created is null)
+        {
+            statusCss = "alert-danger";
+            statusMessage = "Failed to register the debt movement.";
+            return;
+        }
+
+        employeeForm = new();
+        await ReloadSelectedAccount();
+        statusCss = "alert-success";
+        statusMessage = "Debt movement registered.";
+    }
+
+    private async Task SubmitExpenseAsync()
+    {
+        if (selectedAccount is null || !expenseForm.Amount.HasValue) return;
+
+        isSubmitting = true;
+        statusMessage = null;
+        StateHasChanged();
+
+        var created = await AccountsApi.CreateExpenseMovementAsync(
+            selectedAccount.Id,
+            new CreateMovementRequest(expenseForm.Description, expenseForm.Amount.Value));
+
+        isSubmitting = false;
+
+        if (created is null)
+        {
+            statusCss = "alert-danger";
+            statusMessage = "Failed to register the expense movement.";
+            return;
+        }
+
+        expenseForm = new();
+        await ReloadSelectedAccount();
+        statusCss = "alert-success";
+        statusMessage = "Expense movement registered.";
+    }
+
+    private async Task ReloadSelectedAccount()
+    {
+        if (selectedAccount is null) return;
+
+        if (activeTab == Tab.Employee)
+        {
+            var summaryTask = AccountsApi.GetEmployeeAccountSummaryAsync(selectedAccount.Id);
+            var movementsTask = AccountsApi.GetEmployeeMovementsAsync(selectedAccount.Id);
+            await Task.WhenAll(summaryTask, movementsTask);
+            selectedAccount = await summaryTask;
+            movements = selectedAccount is null ? [] : await movementsTask;
+        }
+        else
+        {
+            var summaryTask = AccountsApi.GetExpenseAccountSummaryAsync(selectedAccount.Id);
+            var movementsTask = AccountsApi.GetExpenseMovementsAsync(selectedAccount.Id);
+            await Task.WhenAll(summaryTask, movementsTask);
+            selectedAccount = await summaryTask;
+            movements = selectedAccount is null ? [] : await movementsTask;
+        }
+    }
+
+    private sealed class EmployeeMovementFormModel
+    {
+        [Required]
+        public string Description { get; set; } = string.Empty;
+
+        [Range(typeof(decimal), "0.01", "999999999")]
+        public decimal? Amount { get; set; }
+
+        [Required]
+        public string Shift { get; set; } = string.Empty;
+    }
+
+    private sealed class ExpenseMovementFormModel
+    {
+        [Required]
+        public string Description { get; set; } = string.Empty;
+
+        [Range(typeof(decimal), "0.01", "999999999")]
+        public decimal? Amount { get; set; }
+    }
+}
